@@ -2,8 +2,6 @@ version: '3.4'
 
 volumes:
   l2_ipc:
-  l2_data:
-  safedb_data:
 
 services:
   rise-exec:
@@ -28,7 +26,7 @@ services:
       --rollup.sequencer-http ${SEQUENCER_URL}
       --full
     volumes:
-      - "l2_data:/db"
+      - "${LOCAL_DATA_DIR}/l2_data:/db"
       - "l2_ipc:/ipc"
       - "./chain/genesis.json:/genesis.json"
       - "./jwt.txt:/config/jwt.txt"
@@ -62,7 +60,7 @@ services:
       - "9223:9223/udp"   # p2p
       - "7300:7300"       # metrics
     volumes:
-      - "safedb_data:/db"
+      - "${LOCAL_DATA_DIR}/safedb_data:/db"
       - "./jwt.txt:/config/jwt.txt"
       - "./chain/rollup.json:/rollup.json"
       - "l2_ipc:/ipc"
