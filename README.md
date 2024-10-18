@@ -1,0 +1,1 @@
+https://github.com/paradigmxyz/reth/blob/main/etc/README.md

@@ -1,0 +1,68 @@
+version: '3.4'
+
+volumes:
+  l2_ipc:
+  l2_data:
+  safedb_data:
+
+services:
+  rise-exec:
+    image: ghcr.io/paradigmxyz/op-reth:v1.1.0
+    restart: unless-stopped
+    ports:
+      - "8545:8545"         # rpc
+      - "8546:8546"         # ws
+      - "9001:9001"         # metrics
+      - "30303:30303/udp"   # peering
+      - "30303:30303/tcp"   # peering
+    command: >
+      node
+      --chain=/genesis.json
+      --datadir=/db
+      --http --http.api=all --http.addr=0.0.0.0 --http.port=8545
+      --ws --ws.api=all --ws.addr=0.0.0.0 --ws.port=8546
+      --authrpc.jwtsecret=/config/jwt.txt
+      --auth-ipc
+      --auth-ipc.path /ipc/auth_reth.ipc
+      --metrics 0.0.0.0:9001
+      --rollup.sequencer-http ${SEQUENCER_URL}
+      --full
+    volumes:
+      - "l2_data:/db"
+      - "l2_ipc:/ipc"
+      - "./chain/genesis.json:/genesis.json"
+      - "./jwt.txt:/config/jwt.txt"
+
+  rise-node:
+    image: 767950126588.dkr.ecr.us-east-2.amazonaws.com/rise/op-node:v1.9.2
+    restart: unless-stopped
+    command: >
+      op-node
+      --l1=${L1_RPC_URL}
+      --l1.beacon=${L1_BEACON_URL}
+      --l1.epoch-poll-interval=12s
+      --l1.http-poll-interval=6s
+      --l1.trustrpc
+      --l1.rpckind=debug_geth
+      --l2=/ipc/auth_reth.ipc
+      --l2.jwt-secret=/config/jwt.txt
+      --l2.enginekind=reth
+      --rollup.config=/rollup.json
+      --p2p.static=${SEQUENCER_NODE_MULTIADDR}
+      --p2p.listen.ip=0.0.0.0
+      --p2p.listen.tcp=9223
+      --p2p.listen.udp=9223
+      --metrics.enabled --metrics.addr=0.0.0.0 --metrics.port=7300
+      --altda.enabled=true
+      --altda.da-service=false
+      --altda.da-server=${DA_SERVER_URL}
+    ports:
+      - "7545:8545"       # rpc
+      - "9223:9223/tcp"   # p2p
+      - "9223:9223/udp"   # p2p
+      - "7300:7300"       # metrics
+    volumes:
+      - "safedb_data:/db"
+      - "./jwt.txt:/config/jwt.txt"
+      - "./chain/rollup.json:/rollup.json"
+      - "l2_ipc:/ipc"
