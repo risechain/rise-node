@@ -23,7 +23,7 @@ $ ./generate-jwt.sh
 Prepare your config
 
 ```sh
-$ copy env.example .env
+$ cp env.example .env
 ```
 
 Config your Sepolia L1 RPC and local data directory to persist the state data.
