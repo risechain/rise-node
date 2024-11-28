@@ -5,7 +5,7 @@ volumes:
 
 services:
   rise-exec:
-    image: ghcr.io/paradigmxyz/op-reth:v1.1.0
+    image: ghcr.io/paradigmxyz/op-reth:v1.1.2
     restart: unless-stopped
     ports:
       - "8545:8545"         # rpc
@@ -32,7 +32,7 @@ services:
       - "./jwt.txt:/config/jwt.txt"
 
   rise-node:
-    image: public.ecr.aws/h7i4k4s6/risechain/op-node:v1.9.2
+    image: public.ecr.aws/h7i4k4s6/risechain/op-node:v1.9.4
     restart: unless-stopped
     command: >
       op-node
