@@ -32,7 +32,7 @@ services:
       - "./jwt.txt:/config/jwt.txt"
 
   rise-node:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/op-node:v1.9.4
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-op-node:v1.9.4
     restart: unless-stopped
     command: >
       op-node
