@@ -5,7 +5,7 @@ volumes:
 
 services:
   rise-exec:
-    image: ghcr.io/paradigmxyz/op-reth:v1.1.2
+    image: ghcr.io/paradigmxyz/op-reth:v1.2.0
     restart: unless-stopped
     ports:
       - "8545:8545"         # rpc
