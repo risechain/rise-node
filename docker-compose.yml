@@ -5,7 +5,7 @@ volumes:
 
 services:
   rise-exec:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain/rise/rise-exec:sha-2ad2a90.a
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-2ad2a90
     restart: unless-stopped
     ports:
       - "8545:8545"         # rpc
