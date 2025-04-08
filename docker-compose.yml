@@ -5,7 +5,7 @@ volumes:
 
 services:
   rise-exec:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-7950e7f
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-94e41ea
     restart: unless-stopped
     ports:
       - "8545:8545"         # rpc
@@ -24,7 +24,10 @@ services:
       --auth-ipc.path /ipc/auth_reth.ipc
       --metrics 0.0.0.0:9001
       --rollup.sequencer-http ${SEQUENCER_URL}
+      --rpc.gascap=150000000
       --full
+    environment:
+      - "RISE_SEQUENCER_WS=${SEQUENCER_WS_URL}"
     volumes:
       - "${LOCAL_DATA_DIR}/l2_data:/db"
       - "l2_ipc:/ipc"
@@ -32,7 +35,7 @@ services:
       - "./jwt.txt:/config/jwt.txt"
 
   rise-node:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-op-node:sha-675b3ec
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-op-node:sha-d28e31b
     restart: unless-stopped
     command: >
       op-node
