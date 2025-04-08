@@ -5,7 +5,7 @@ volumes:
 
 services:
   rise-exec:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-2ad2a90
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-7950e7f
     restart: unless-stopped
     ports:
       - "8545:8545"         # rpc
@@ -32,7 +32,7 @@ services:
       - "./jwt.txt:/config/jwt.txt"
 
   rise-node:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-op-node:sha-e81ad26
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-op-node:sha-675b3ec
     restart: unless-stopped
     command: >
       op-node
