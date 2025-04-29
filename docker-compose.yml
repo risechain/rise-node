@@ -23,11 +23,9 @@ services:
       --auth-ipc
       --auth-ipc.path /ipc/auth_reth.ipc
       --metrics 0.0.0.0:9001
-      --rollup.sequencer-ws ${RISE_SEQUENCER_WS}
+      --rollup.sequencer-ws ${SEQUENCER_WS_URL}
       --rpc.gascap=150000000
       --full
-    environment:
-      - "RISE_SEQUENCER_WS=${SEQUENCER_WS_URL}"
     volumes:
       - "${LOCAL_DATA_DIR}/l2_data:/db"
       - "l2_ipc:/ipc"
