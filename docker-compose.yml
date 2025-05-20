@@ -5,7 +5,7 @@ volumes:
 
 services:
   rise-exec:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-b1221db
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-1d3f733
     restart: unless-stopped
     ports:
       - "8545:8545"         # rpc
@@ -25,6 +25,8 @@ services:
       --metrics 0.0.0.0:9001
       --rollup.sequencer-ws ${SEQUENCER_WS_URL}
       --rpc.gascap=150000000
+      --txpool.nolocals
+      --txpool.max-account-slots=18446744073709551615
       --full
     volumes:
       - "${LOCAL_DATA_DIR}/l2_data:/db"
@@ -33,7 +35,7 @@ services:
       - "./jwt.txt:/config/jwt.txt"
 
   rise-node:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-op-node:sha-d28e31b
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-op-node:sha-d8a8921
     restart: unless-stopped
     command: >
       op-node
@@ -52,6 +54,7 @@ services:
       --p2p.listen.tcp=9223
       --p2p.listen.udp=9223
       --metrics.enabled --metrics.addr=0.0.0.0 --metrics.port=7300
+      --ignore-missing-pectra-blob-schedule
       --altda.enabled=true
       --altda.da-service=false
       --altda.da-server=${DA_SERVER_URL}
