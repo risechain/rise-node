@@ -5,7 +5,7 @@ volumes:
 
 services:
   rise-exec:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-1d3f733
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-04c596f
     restart: unless-stopped
     ports:
       - "8545:8545"         # rpc
@@ -24,7 +24,7 @@ services:
       --auth-ipc.path /ipc/auth_reth.ipc
       --metrics 0.0.0.0:9001
       --rollup.sequencer-ws ${SEQUENCER_WS_URL}
-      --rpc.gascap=150000000
+      --rpc.gascap=64000000
       --txpool.nolocals
       --txpool.max-account-slots=18446744073709551615
       --full
