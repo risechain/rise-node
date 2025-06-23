@@ -13,7 +13,7 @@
       "batcherAddr": "0x45bd8bc15ffc21315f8a1e3cdf67c73b487768e8",
       "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "scalar": "0x010000000000000000000000000000000000000000000000000c5fc500000558",
-      "gasLimit": 18446744073709551615
+      "gasLimit": 9223372036854775807
     }
   },
   "block_time": 1,
@@ -28,6 +28,7 @@
   "ecotone_time": 0,
   "fjord_time": 0,
   "granite_time": 0,
+  "holocene_time": 1750845600,
   "batch_inbox_address": "0xff00000000000000000000000000002511155931",
   "deposit_contract_address": "0x77cce5cd26c75140c35c38104d0c655c7a786acb",
   "l1_system_config_address": "0x5088a091bd20343787c5afc95aa002d13d9f3535",

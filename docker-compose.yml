@@ -5,7 +5,7 @@ volumes:
 
 services:
   rise-exec:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-04c596f
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-630458f
     restart: unless-stopped
     ports:
       - "8545:8545"         # rpc
@@ -27,6 +27,7 @@ services:
       --rpc.gascap=64000000
       --txpool.nolocals
       --txpool.max-account-slots=18446744073709551615
+      --identity=rise-630458f/reth-v1.4.3-fe3653f/linux-aarch64
       --full
     volumes:
       - "${LOCAL_DATA_DIR}/l2_data:/db"
@@ -35,7 +36,7 @@ services:
       - "./jwt.txt:/config/jwt.txt"
 
   rise-node:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-op-node:sha-d8a8921
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-op-node:sha-d090b05
     restart: unless-stopped
     command: >
       op-node
