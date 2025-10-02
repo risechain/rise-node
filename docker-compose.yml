@@ -5,7 +5,7 @@ volumes:
 
 services:
   rise-exec:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-4ff7e8e
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-7169716
     restart: unless-stopped
     ports:
       - "8545:8545"         # rpc
@@ -27,7 +27,7 @@ services:
       --rpc.gascap=64000000
       --txpool.nolocals
       --txpool.max-account-slots=18446744073709551615
-      --identity=rise-4ff7e8e/reth-v1.6.0-2170f1b/linux-aarch64
+      --identity=rise-7169716/reth-v1.8.1-95e8a65/linux-aarch64
       --full
     volumes:
       - "${LOCAL_DATA_DIR}/l2_data:/db"
