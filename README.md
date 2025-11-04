@@ -31,7 +31,6 @@ Config your Sepolia L1 RPC and local data directory to persist the state data.
 # .env file
 # your config
 L1_RPC_URL=
-L1_BEACON_URL=
 LOCAL_DATA_DIR=./
 ```
 
