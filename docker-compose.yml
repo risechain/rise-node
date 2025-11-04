@@ -5,14 +5,12 @@ volumes:
 
 services:
   rise-exec:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-c7cd0d4
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-5cf54b8
     restart: unless-stopped
     ports:
       - "8545:8545"         # rpc
       - "8546:8546"         # ws
       - "9001:9001"         # metrics
-      - "30303:30303/udp"   # peering
-      - "30303:30303/tcp"   # peering
     command: >
       node
       --chain=/genesis.json
@@ -23,12 +21,13 @@ services:
       --auth-ipc
       --auth-ipc.path /ipc/auth_reth.ipc
       --metrics 0.0.0.0:9001
-      --rollup.sequencer-ws ${SEQUENCER_WS_URL}
       --rpc.gascap=64000000
       --txpool.nolocals
       --txpool.max-account-slots=18446744073709551615
       --identity=rise-c7cd0d4/reth-v1.8.2-8effbf2/linux-aarch64
       --full
+    environment:
+      - RISE_UPSTREAM_WS_URL=${SEQUENCER_WS_URL}
     volumes:
       - "${LOCAL_DATA_DIR}/l2_data:/db"
       - "l2_ipc:/ipc"
@@ -36,12 +35,12 @@ services:
       - "./jwt.txt:/config/jwt.txt"
 
   rise-node:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-op-node:sha-92393ee
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-op-node:sha-84ed5c3
     restart: unless-stopped
     command: >
       op-node
       --l1=${L1_RPC_URL}
-      --l1.beacon=${L1_BEACON_URL}
+      --l1.beacon.ignore=true
       --l1.epoch-poll-interval=12s
       --l1.http-poll-interval=6s
       --l1.trustrpc
