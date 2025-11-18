@@ -25,7 +25,7 @@ services:
       --txpool.nolocals
       --txpool.max-account-slots=18446744073709551615
       --identity=rise-c7cd0d4/reth-v1.8.2-8effbf2/linux-aarch64
-      --full
+      ${FULL_NODE_FLAG:-}
     environment:
       - RISE_UPSTREAM_WS_URL=${SEQUENCER_WS_URL}
     volumes:
