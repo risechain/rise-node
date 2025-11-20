@@ -5,7 +5,7 @@ volumes:
 
 services:
   rise-exec:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-5cf54b8
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-1466bea
     restart: unless-stopped
     ports:
       - "8545:8545"         # rpc
@@ -24,8 +24,11 @@ services:
       --rpc.gascap=64000000
       --txpool.nolocals
       --txpool.max-account-slots=18446744073709551615
-      --identity=rise-c7cd0d4/reth-v1.8.2-8effbf2/linux-aarch64
-      --full
+      --engine.state-root-fallback
+      --engine.disable-prewarming
+      --engine.allow-unwind-canonical-header
+      --identity=rise-1466bea/reth-v1.9.3-7a72550/linux-aarch64
+      ${FULL_NODE_FLAG:-}
     environment:
       - RISE_UPSTREAM_WS_URL=${SEQUENCER_WS_URL}
     volumes:
@@ -35,7 +38,7 @@ services:
       - "./jwt.txt:/config/jwt.txt"
 
   rise-node:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-op-node:sha-84ed5c3
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-op-node:sha-e3b27d7
     restart: unless-stopped
     command: >
       op-node
