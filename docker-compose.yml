@@ -59,10 +59,10 @@ services:
       --metrics.enabled --metrics.addr=0.0.0.0 --metrics.port=7300
       --ignore-missing-pectra-blob-schedule
       --altda.enabled=true
-      --altda.da-service=false
+      --altda.da-service=true
       --altda.da-server=${DA_SERVER_URL}
     ports:
-      - "7545:8545"       # rpc
+      - "7545:9545"       # rpc
       - "9223:9223/tcp"   # p2p
       - "9223:9223/udp"   # p2p
       - "7300:7300"       # metrics
