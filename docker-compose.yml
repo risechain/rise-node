@@ -5,7 +5,7 @@ volumes:
 
 services:
   rise-exec:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-1466bea
+    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-568e12b
     restart: unless-stopped
     ports:
       - "8545:8545"         # rpc
@@ -27,7 +27,7 @@ services:
       --engine.state-root-fallback
       --engine.disable-prewarming
       --engine.allow-unwind-canonical-header
-      --identity=rise-1466bea/reth-v1.9.3-7a72550/linux-aarch64
+      --identity=rise-568e12b/reth-v1.9.3-e03c9da/linux-aarch64
       ${FULL_NODE_FLAG:-}
     environment:
       - RISE_UPSTREAM_WS_URL=${SEQUENCER_WS_URL}
@@ -51,6 +51,7 @@ services:
       --l2=/ipc/auth_reth.ipc
       --l2.jwt-secret=/config/jwt.txt
       --l2.enginekind=reth
+      --verifier.l1-confs=12
       --rollup.config=/rollup.json
       --p2p.static=${SEQUENCER_NODE_MULTIADDR}
       --p2p.listen.ip=0.0.0.0
