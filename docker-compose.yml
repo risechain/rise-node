@@ -27,7 +27,7 @@ services:
       --engine.state-root-fallback
       --engine.disable-prewarming
       --engine.allow-unwind-canonical-header
-      --identity=rise-568e12b/reth-v1.9.3-e03c9da/linux-aarch64
+      --identity=rise-8a87c87/reth-v1.9.3-b7d8815/linux-aarch64
       ${FULL_NODE_FLAG:-}
     environment:
       - RISE_UPSTREAM_WS_URL=${SEQUENCER_WS_URL}
