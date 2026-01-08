@@ -57,6 +57,7 @@ services:
       --p2p.listen.ip=0.0.0.0
       --p2p.listen.tcp=9223
       --p2p.listen.udp=9223
+      --p2p.gossip.timestamp.threshold=30m0s
       --metrics.enabled --metrics.addr=0.0.0.0 --metrics.port=7300
       --ignore-missing-pectra-blob-schedule
       --altda.enabled=true
