@@ -50,22 +50,42 @@ After starting the node, you can monitor your chain via the Grafana dashboard. T
 
 ## Run the full node from snapshot
 
-We take a snapshot of the full node every day at midnight. You can use these snapshots to speed up your node synchronization.
+We take a snapshot of the full node once every day. You can use these snapshots to speed up your node synchronization.
 
 The archive includes the databases for both the execution and consensus layers, specifically `l2_data` and `safedb_data`.
 
-Make sure to download and extract the archive into your node's data directory (default is `./data`). The download link will look like this:
-https://storage.googleapis.com/rise-snapshot/rise-sepolia.snapshot.20250410.tar.lz4
+Snapshots are hosted on Cloudflare R2 and are available over HTTPS. Make sure to download and extract the archive into your node’s data directory (default is `./data`).
+
+### Latest snapshot
+
+You can download the latest snapshot using the following URL:
+https://snapshot.testnet.riselabs.xyz/rise-sepolia/snapshot/latest
+
+If you face any issues while downloading the latest snapshot (for example, interrupted or failed downloads), please use the direct snapshot file URL instead.
+
+### Snapshot download link (alternative)
+
+The download link will look like this:
+https://snapshot.testnet.riselabs.xyz/rise-sepolia.snapshot._YYYYMMDD.tar.zst
+
+Example:
+https://snapshot.testnet.riselabs.xyz/rise-sepolia.snapshot._20260202.tar.zst
+
+### Snapshot naming format
 
 The file is named in the format:
-`rise-sepolia.snapshot.YYYYmmdd.tar.lz4`
-(for example, the snapshot taken on April 10 should be `rise-sepolia.snapshot.20250410.tar.lz4`).
-You can also ask our DevOps team for the latest snapshot.
+`rise-sepolia.snapshot._YYYYMMDD.tar.zst`
 
-To extract the archive, use the following command:
+(for example, the snapshot taken on February 2 should be `rise-sepolia.snapshot._20260202.tar.zst`).
+
+### Extract the snapshot
+
+To extract the archive, use the following commands:
 
 ```shell
-cp rise-sepolia.snapshot.20250410.tar.lz4 ./data
-tar -I lz4 -xvf rise-sepolia.snapshot.20250410.tar.lz4
-rm rise-sepolia.snapshot.20250410.tar.lz4
-```
+wget https://snapshot.testnet.riselabs.xyz/rise-sepolia.snapshot._20260202.tar.zst
+cp rise-sepolia.snapshot._20260202.tar.zst ./data
+cd ./data
+tar --use-compress-program=zstd -xvf rise-sepolia.snapshot._20260202.tar.zst
+rm rise-sepolia.snapshot._20260202.tar.zst
+
