@@ -5,7 +5,7 @@ volumes:
 
 services:
   rise-exec:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-exec/node:sha-2199966
+    image: public.ecr.aws/risechain/risechain-public/rise-exec/node:sha-8908714
     restart: unless-stopped
     ports:
       - "8545:8545"         # rpc
@@ -15,8 +15,8 @@ services:
       node
       --chain=/genesis.json
       --datadir=/db
-      --http --http.api=all --http.addr=0.0.0.0 --http.port=8545
-      --ws --ws.api=all --ws.addr=0.0.0.0 --ws.port=8546
+      --http --http.api=eth,web3 --http.addr=0.0.0.0 --http.port=8545
+      --ws --ws.api=eth,web3 --ws.addr=0.0.0.0 --ws.port=8546
       --authrpc.jwtsecret=/config/jwt.txt
       --auth-ipc
       --auth-ipc.path /ipc/auth_reth.ipc
@@ -38,7 +38,7 @@ services:
       - "./jwt.txt:/config/jwt.txt"
 
   rise-node:
-    image: us-east4-docker.pkg.dev/rise-431614/risechain-public/rise-op-node:sha-db04ab1
+    image: public.ecr.aws/risechain/risechain-public/rise-op-node:sha-d39aaf9
     restart: unless-stopped
     command: >
       op-node
@@ -58,6 +58,7 @@ services:
       --p2p.listen.tcp=9223
       --p2p.listen.udp=9223
       --p2p.gossip.timestamp.threshold=30m0s
+      --p2p.no-discovery
       --metrics.enabled --metrics.addr=0.0.0.0 --metrics.port=7300
       --ignore-missing-pectra-blob-schedule
       --altda.enabled=true
