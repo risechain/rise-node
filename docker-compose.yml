@@ -5,7 +5,7 @@ volumes:
 
 services:
   rise-exec:
-    image: public.ecr.aws/risechain/risechain-public/rise-exec/node:sha-8908714
+    image: public.ecr.aws/risechain/risechain-public/rise-exec/node:sha-624a411
     restart: unless-stopped
     ports:
       - "8545:8545"         # rpc
