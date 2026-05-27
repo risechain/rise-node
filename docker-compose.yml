@@ -1,76 +1,125 @@
-version: '3.4'
 
 volumes:
   l2_ipc:
 
 services:
   rise-exec:
-    image: public.ecr.aws/risechain/risechain-public/rise-exec/node:sha-f97ed60
+    container_name: rise-exec
+    image: public.ecr.aws/risechain/risechain-public/rise-exec/replica:sha-94d7211
     restart: unless-stopped
+    deploy:
+      ## Resource usage and Limit
+      # Depend on your system
+      resources:
+        limits:
+            cpus: 10
+            memory: 100g
+        reservations:
+            cpus: 8
+            memory: 80g
     ports:
-      - "8545:8545"         # rpc
-      - "8546:8546"         # ws
-      - "9001:9001"         # metrics
-    command: >
-      node
-      --chain=/genesis.json
-      --datadir=/db
-      --http --http.api=eth,web3 --http.addr=0.0.0.0 --http.port=8545
-      --ws --ws.api=eth,web3 --ws.addr=0.0.0.0 --ws.port=8546
-      --authrpc.jwtsecret=/config/jwt.txt
-      --auth-ipc
-      --auth-ipc.path /ipc/auth_reth.ipc
-      --metrics 0.0.0.0:9001
-      --rpc.gascap=64000000
-      --txpool.nolocals
-      --txpool.max-account-slots=18446744073709551615
-      --engine.state-root-fallback
-      --engine.disable-prewarming
-      --engine.allow-unwind-canonical-header
-      --identity=rise-4f9b653/reth-main-8367ba4/linux-aarch64
-      ${FULL_NODE_FLAG:-}
+      - "8545:8545" # rpc
+      - "8546:8546" # ws
+      - "9001:9001" # metrics
+    command:
+      - node
+      - --chain=/genesis.json
+      - --datadir=/db
+      - --http
+      - --http.api=eth,web3
+      - --http.addr=0.0.0.0
+      - --http.port=8545
+      - --ws
+      - --ws.api=eth,web3
+      - --ws.addr=0.0.0.0
+      - --ws.port=8546
+      - --authrpc.jwtsecret=/config/jwt.txt
+      - --auth-ipc
+      - --auth-ipc.path=/ipc/auth_reth.ipc
+      - --metrics=0.0.0.0:9001
+      - --txpool.nolocals
+      - --txpool.pending_max_count=1000000
+      - --txpool.pending_max_size=1000000
+      - --txpool.max-account-slots=18446744073709551615
+      - --txpool.queued-max-count=2000
+      - --rpc-max-connections=4294967295
+      - --rpc.gascap=64000000
+      - --rpc.eth-proof-window=216000
+      - --rpc.proof-permits=3
+      - --rpc.max-request-size=4
+      - --rpc.max-logs-per-response=5000
+      - --rpc.max-blocks-per-filter=5000
+      - --engine.state-root-fallback
+      - --engine.disable-prewarming
+      - --engine.allow-unwind-canonical-header
+      - --engine.persistence-threshold=0
     environment:
-      - RISE_UPSTREAM_WS_URL=${SEQUENCER_WS_URL}
+      - RUST_LOG=info
     volumes:
-      - "${LOCAL_DATA_DIR}/l2_data:/db"
+      - "/mnt/data/l2_data:/db"
       - "l2_ipc:/ipc"
-      - "./chain/genesis.json:/genesis.json"
+      - "${CHAIN_CONFIG_DIR}/genesis.json:/genesis.json"
       - "./jwt.txt:/config/jwt.txt"
 
   rise-node:
+    container_name: rise-node
+    depends_on:
+      - rise-exec
     image: public.ecr.aws/risechain/risechain-public/rise-op-node:sha-83a4272
     restart: unless-stopped
-    command: >
-      op-node
-      --l1=${L1_RPC_URL}
-      --l1.beacon.ignore=true
-      --l1.epoch-poll-interval=12s
-      --l1.http-poll-interval=6s
-      --l1.trustrpc
-      --l1.rpckind=debug_geth
-      --l2=/ipc/auth_reth.ipc
-      --l2.jwt-secret=/config/jwt.txt
-      --l2.enginekind=reth
-      --verifier.l1-confs=12
-      --rollup.config=/rollup.json
-      --p2p.static=${SEQUENCER_NODE_MULTIADDR}
-      --p2p.listen.ip=0.0.0.0
-      --p2p.listen.tcp=9223
-      --p2p.listen.udp=9223
-      --p2p.gossip.timestamp.threshold=30m0s
-      --p2p.no-discovery
-      --metrics.enabled --metrics.addr=0.0.0.0 --metrics.port=7300
-      --ignore-missing-pectra-blob-schedule
-      --altda.enabled=true
-      --altda.da-service=true
-      --altda.da-server=${DA_SERVER_URL}
+    deploy:
+      ## Resource usage and Limit
+      # Depend on your system
+      resources:
+        limits:
+            cpus: 2.5
+            memory: 12g
+        reservations:
+            cpus: 2
+            memory: 12g
     ports:
       - "7545:9545"       # rpc
-      - "9223:9223/tcp"   # p2p
-      - "9223:9223/udp"   # p2p
+      - "30003:30003/tcp"   # p2p
+      - "30003:30003/udp"   # p2p
       - "7300:7300"       # metrics
+    command:
+      - op-node
+      - --l1=${L1_RPC_URL}
+      - --l1.beacon.ignore=true
+      - --l1.trustrpc
+      - --l1.rpckind=debug_geth
+      - --l2=/ipc/auth_reth.ipc
+      - --l2.jwt-secret=/config/jwt.txt
+      - --l2.enginekind=reth
+      - --rollup.config=/rollup.json
+      - --rpc.port=7545
+      - --rpc.enable-admin
+      - --p2p.priv.path=/config/p2p-node-key.txt
+      - --p2p.static=${P2P_STATIC}
+      - --p2p.listen.ip=0.0.0.0
+      - --p2p.listen.tcp=30003
+      - --p2p.listen.udp=30003
+      - --metrics.enabled
+      - --metrics.addr=0.0.0.0
+      - --metrics.port=7300
+      - --ignore-missing-pectra-blob-schedule
+      - --safedb.path=/db/safedb_data
+      - --altda.enabled=true
+      - --altda.da-service=true
+      - --altda.da-server=${DA_SERVER}
+    environment:
+      - OP_NODE_L1_EPOCH_POLL_INTERVAL=12s
+      - OP_NODE_L1_HTTP_POLL_INTERVAL=6s
+      - OP_NODE_L1_RPC_MAX_BATCH_SIZE=30
+      - OP_NODE_L1_MAX_CONCURRENCY=30
+      - OP_NODE_VERIFIER_L1_CONFS=12
+      - OP_NODE_ALTDA_MAX_CONCURRENT_DA_REQUESTS=5
+      - OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD=45m0s
+      - OP_NODE_P2P_NO_DISCOVERY=true
+      - OP_NODE_P2P_SYNC_ONLYREQTOSTATIC=true
+      - OP_NODE_LOG_LEVEL=DEBUG
     volumes:
-      - "${LOCAL_DATA_DIR}/safedb_data:/db"
+      - "/mnt/data/safedb_data:/db/safedb_data"
       - "./jwt.txt:/config/jwt.txt"
-      - "./chain/rollup.json:/rollup.json"
+      - "${CHAIN_CONFIG_DIR}/rollup.json:/rollup.json"
       - "l2_ipc:/ipc"
