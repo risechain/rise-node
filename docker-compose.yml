@@ -5,7 +5,7 @@ volumes:
 services:
   rise-exec:
     container_name: rise-exec
-    image: public.ecr.aws/risechain/risechain-public/rise-exec/replica:sha-94d7211
+    image: public.ecr.aws/risechain/risechain-public/rise-exec/replica:sha-bb10092
     restart: unless-stopped
     deploy:
       ## Resource usage and Limit
@@ -49,10 +49,6 @@ services:
       - --rpc.max-request-size=4
       - --rpc.max-logs-per-response=5000
       - --rpc.max-blocks-per-filter=5000
-      - --engine.state-root-fallback
-      - --engine.disable-prewarming
-      - --engine.allow-unwind-canonical-header
-      - --engine.persistence-threshold=0
     environment:
       - RUST_LOG=info
     volumes:
@@ -65,7 +61,7 @@ services:
     container_name: rise-node
     depends_on:
       - rise-exec
-    image: public.ecr.aws/risechain/risechain-public/rise-op-node:sha-83a4272
+    image: public.ecr.aws/risechain/risechain-public/rise-op-node:sha-b1f242d
     restart: unless-stopped
     deploy:
       ## Resource usage and Limit
@@ -80,17 +76,12 @@ services:
     ports:
       - "7545:9545"       # rpc
       - "30003:30003/tcp"   # p2p
-      - "30003:30003/udp"   # p2p
       - "7300:7300"       # metrics
     command:
       - op-node
       - --l1=${L1_RPC_URL}
-      - --l1.beacon.ignore=true
-      - --l1.trustrpc
-      - --l1.rpckind=debug_geth
       - --l2=/ipc/auth_reth.ipc
       - --l2.jwt-secret=/config/jwt.txt
-      - --l2.enginekind=reth
       - --rollup.config=/rollup.json
       - --rpc.port=7545
       - --rpc.enable-admin
@@ -98,14 +89,11 @@ services:
       - --p2p.static=${P2P_STATIC}
       - --p2p.listen.ip=0.0.0.0
       - --p2p.listen.tcp=30003
-      - --p2p.listen.udp=30003
+      - --p2p.static.follow-reorg
       - --metrics.enabled
       - --metrics.addr=0.0.0.0
       - --metrics.port=7300
-      - --ignore-missing-pectra-blob-schedule
       - --safedb.path=/db/safedb_data
-      - --altda.enabled=true
-      - --altda.da-service=true
       - --altda.da-server=${DA_SERVER}
     environment:
       - OP_NODE_L1_EPOCH_POLL_INTERVAL=12s
@@ -115,8 +103,6 @@ services:
       - OP_NODE_VERIFIER_L1_CONFS=12
       - OP_NODE_ALTDA_MAX_CONCURRENT_DA_REQUESTS=5
       - OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD=45m0s
-      - OP_NODE_P2P_NO_DISCOVERY=true
-      - OP_NODE_P2P_SYNC_ONLYREQTOSTATIC=true
       - OP_NODE_LOG_LEVEL=DEBUG
     volumes:
       - "/mnt/data/safedb_data:/db/safedb_data"
