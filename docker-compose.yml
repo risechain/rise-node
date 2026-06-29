@@ -76,7 +76,6 @@ services:
     ports:
       - "7545:9545"       # rpc
       - "30003:30003/tcp"   # p2p
-      - "30003:30003/udp"   # p2p
       - "7300:7300"       # metrics
     command:
       - op-node
