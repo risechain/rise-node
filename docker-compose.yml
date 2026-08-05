@@ -5,7 +5,7 @@ volumes:
 services:
   rise-exec:
     container_name: rise-exec
-    image: public.ecr.aws/risechain/risechain-public/rise-exec/replica:sha-bb10092
+    image: public.ecr.aws/risechain/risechain-public/rise-exec/replica:sha-4d4a693
     restart: unless-stopped
     deploy:
       ## Resource usage and Limit
@@ -49,6 +49,7 @@ services:
       - --rpc.max-request-size=4
       - --rpc.max-logs-per-response=5000
       - --rpc.max-blocks-per-filter=5000
+      - --prune.sender-recovery.full
     environment:
       - RUST_LOG=info
     volumes:
@@ -61,7 +62,7 @@ services:
     container_name: rise-node
     depends_on:
       - rise-exec
-    image: public.ecr.aws/risechain/risechain-public/rise-op-node:sha-b1f242d
+    image: public.ecr.aws/risechain/risechain-public/rise-op-node:sha-ae63731
     restart: unless-stopped
     deploy:
       ## Resource usage and Limit
