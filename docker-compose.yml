@@ -91,6 +91,7 @@ services:
       - --l2.jwt-secret=/config/jwt.txt
       - --rollup.config=/rollup.json
       - --rpc.port=7545
+      - --rpc.enable-admin
       - --p2p.priv.path=/config/p2p-node-key.txt
       - --p2p.static=${P2P_STATIC}
       - --p2p.listen.ip=0.0.0.0
