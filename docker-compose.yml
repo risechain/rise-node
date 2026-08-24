@@ -5,7 +5,7 @@ volumes:
 services:
   rise-exec:
     container_name: rise-exec
-    image: public.ecr.aws/risechain/risechain-public/rise-exec/replica:sha-4d4a693
+    image: public.ecr.aws/risechain/risechain-public/rise-exec/replica:${RISE_EXEC_TAG:-sha-80d9780}
     restart: unless-stopped
     deploy:
       ## Resource usage and Limit
@@ -43,12 +43,13 @@ services:
       - --txpool.max-account-slots=18446744073709551615
       - --txpool.queued-max-count=2000
       - --rpc-max-connections=4294967295
-      - --rpc.gascap=64000000
-      - --rpc.eth-proof-window=216000
-      - --rpc.proof-permits=3
+      - --rpc.gascap=${RPC_GAS_CAP:-64000000}
+      - --rpc.eth-proof-window=${RPC_ETH_PROOF_WINDOW:-216000}
+      - --rpc.proof-permits=${RPC_PROOF_PERMITS:-3}
       - --rpc.max-request-size=4
       - --rpc.max-logs-per-response=5000
       - --rpc.max-blocks-per-filter=5000
+      - --rpc.max-response-size=${RPC_MAX_RESPONSE_SIZE:-500}
       - --prune.sender-recovery.full
     environment:
       - RUST_LOG=info
@@ -62,7 +63,7 @@ services:
     container_name: rise-node
     depends_on:
       - rise-exec
-    image: public.ecr.aws/risechain/risechain-public/rise-op-node:sha-ae63731
+    image: public.ecr.aws/risechain/risechain-public/rise-op-node:${RISE_NODE_TAG:-sha-31f2dcb}
     restart: unless-stopped
     deploy:
       ## Resource usage and Limit
@@ -103,8 +104,10 @@ services:
       - OP_NODE_L1_MAX_CONCURRENCY=30
       - OP_NODE_VERIFIER_L1_CONFS=12
       - OP_NODE_ALTDA_MAX_CONCURRENT_DA_REQUESTS=5
-      - OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD=45m0s
+      - OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD=${OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD:-45m0s}
       - OP_NODE_LOG_LEVEL=DEBUG
+      - OP_NODE_L1_RPC_KIND=${L1_RPC_KIND:-standard}
+      - OP_NODE_L1_TRUST_RPC=${L1_TRUST_RPC:-false}
     volumes:
       - "/mnt/data/safedb_data:/db/safedb_data"
       - "./jwt.txt:/config/jwt.txt"
