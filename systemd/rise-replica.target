@@ -1,0 +1,7 @@
+# Start/stop the whole replica stack: systemctl start|stop rise-replica.target
+[Unit]
+Description=RISE replica stack (rise-exec + op-node)
+Wants=rise-exec.service rise-node.service
+
+[Install]
+WantedBy=multi-user.target

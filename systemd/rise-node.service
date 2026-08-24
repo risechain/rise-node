@@ -1,0 +1,42 @@
+# RISE op-node — installed by scripts/install.sh, do not edit in place.
+[Unit]
+Description=RISE op-node (replica)
+After=network-online.target rise-exec.service
+Wants=network-online.target rise-exec.service
+PartOf=rise-replica.target
+# Retry forever — never park in "failed"
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+User=root
+EnvironmentFile=/opt/rise-node/etc/node.env
+EnvironmentFile=/opt/rise-node/etc/op-node.env
+# --l1 is set via OP_NODE_L1_ETH_RPC in node.env — argv leaks through /proc
+ExecStart=/opt/rise-node/bin/op-node \
+    --l2=/run/rise/auth_reth.ipc \
+    --l2.jwt-secret=/opt/rise-node/etc/jwt.txt \
+    --rollup.config=/opt/rise-node/etc/rollup.json \
+    --safedb.path=${DATA_DIR}/safedb_data \
+    --rpc.addr=127.0.0.1 \
+    --rpc.port=7545 \
+    --p2p.priv.path=/opt/rise-node/etc/p2p-node-key.txt \
+    --p2p.static=${P2P_STATIC} \
+    --p2p.listen.ip=0.0.0.0 \
+    --p2p.listen.tcp=30003 \
+    --p2p.static.follow-reorg \
+    --metrics.enabled \
+    --metrics.addr=127.0.0.1 \
+    --metrics.port=7300 \
+    --altda.da-server=${DA_SERVER}
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+TimeoutStopSec=60
+# op-node bursts can exceed journald's default rate limit — don't drop lines
+LogRateLimitBurst=0
+LimitNOFILE=65536
+
+[Install]
+WantedBy=rise-replica.target

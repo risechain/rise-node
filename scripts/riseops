@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# riseops — status of the native RISE replica (versions, services, sync).
+set -euo pipefail
+
+BIN_DIR="/opt/rise-node/bin"
+ETC_DIR="/opt/rise-node/etc"
+EXEC_RPC="http://127.0.0.1:8545"
+NODE_RPC="http://127.0.0.1:7545"
+NETWORK=$(sed -n 's/^NETWORK=//p' "$ETC_DIR/node.env" 2>/dev/null || echo "?")
+PUBLIC_RPC=$(sed -n 's/^PUBLIC_RPC=//p' "$ETC_DIR/riseops.env" 2>/dev/null || true)
+
+if [ -t 1 ]; then
+  BOLD=$'\e[1m'; DIM=$'\e[2m'; RED=$'\e[31m'; GRN=$'\e[32m'; YLW=$'\e[33m'; RST=$'\e[0m'
+else
+  BOLD=""; DIM=""; RED=""; GRN=""; YLW=""; RST=""
+fi
+
+state_color() {
+  case "$1" in
+    active) echo "$GRN" ;;
+    failed) echo "$RED" ;;
+    activating|deactivating|reloading) echo "$YLW" ;;
+    *) echo "$DIM" ;;
+  esac
+}
+
+current_tag() {
+  target=$(readlink "$BIN_DIR/$1" 2>/dev/null) || { echo "-"; return; }
+  basename "$(dirname "$target")"
+}
+
+printf '%s%-12s %-16s %-10s %s%s\n' "$BOLD" "COMPONENT" "VERSION" "STATE" "SINCE" "$RST"
+for comp in rise-exec op-node; do
+  case "$comp" in rise-exec) svc=rise-exec.service ;; op-node) svc=rise-node.service ;; esac
+  st=$(systemctl is-active "$svc" 2>/dev/null || true)
+  since=$(systemctl show "$svc" -p ActiveEnterTimestamp --value 2>/dev/null || true)
+  c=$(state_color "$st")
+  printf '%s●%s %-10s %-16s %s%-10s%s %s%s%s\n' \
+    "$c" "$RST" "$comp" "$(current_tag "$comp")" "$c" "$st" "$RST" "$DIM" "${since:--}" "$RST"
+done
+echo
+
+GRN="$GRN" YLW="$YLW" RED="$RED" DIM="$DIM" BOLD="$BOLD" RST="$RST" \
+  python3 - "$EXEC_RPC" "$NODE_RPC" "$NETWORK" "$PUBLIC_RPC" <<'PYEOF'
+import json, os, sys, time, urllib.request
+
+def rpc(url, method, params=None):
+    try:
+        body = json.dumps({"jsonrpc": "2.0", "method": method, "params": params or [], "id": 1}).encode()
+        # default Python-urllib UA is blocked by the public RPC WAF
+        req = urllib.request.Request(url, body, {"content-type": "application/json", "user-agent": "riseops/1.0"})
+        return json.load(urllib.request.urlopen(req, timeout=3)).get("result")
+    except Exception:
+        return None
+
+exec_rpc, node_rpc, network = sys.argv[1:4]
+pub_rpc = sys.argv[4] if len(sys.argv) > 4 else ""
+C = {k: os.environ.get(k, "") for k in ("GRN", "YLW", "RED", "DIM", "BOLD", "RST")}
+
+cid = rpc(exec_rpc, "eth_chainId")
+head = rpc(exec_rpc, "eth_getBlockByNumber", ["latest", False])
+ss = rpc(node_rpc, "optimism_syncStatus")
+
+chain = f"{C['BOLD']}CHAIN{C['RST']} {C['BOLD']}{network}{C['RST']}"
+if cid:
+    chain += f" {C['DIM']}(id {int(cid, 16)}){C['RST']}"
+print(chain)
+
+if head:
+    n, age = int(head["number"], 16), max(0, int(time.time()) - int(head["timestamp"], 16))
+    col = C["GRN"] if age < 30 else (C["YLW"] if age < 300 else C["RED"])
+    verdict = "in sync" if age < 30 else ("lagging" if age < 300 else "STALLED")
+    print(f"  head       {n}  {C['DIM']}({age}s ago){C['RST']}  {col}{verdict}{C['RST']}")
+    remote = rpc(pub_rpc, "eth_blockNumber") if pub_rpc else None
+    if remote:
+        behind = int(remote, 16) - n
+        col = C["GRN"] if behind <= 100 else (C["YLW"] if behind <= 100000 else C["RED"])
+        print(f"  network    {int(remote, 16)}  {C['DIM']}({pub_rpc}){C['RST']}  {col}behind {max(0, behind)} blocks{C['RST']}")
+    elif pub_rpc:
+        print(f"  network    {C['DIM']}unreachable ({pub_rpc}){C['RST']}")
+else:
+    print(f"  head       {C['RED']}EL RPC not answering{C['RST']} ({exec_rpc})")
+
+if ss:
+    u, s, f = (ss.get(k) or {} for k in ("unsafe_l2", "safe_l2", "finalized_l2"))
+    l1 = ss.get("current_l1") or {}
+    print(f"  unsafe     {u.get('number', '-')}   safe {s.get('number', '-')}   finalized {f.get('number', '-')}")
+    print(f"  l1 origin  {l1.get('number', '-')}")
+else:
+    print(f"  op-node    {C['DIM']}syncStatus unavailable ({node_rpc}){C['RST']}")
+PYEOF

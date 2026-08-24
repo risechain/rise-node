@@ -1,0 +1,58 @@
+# RISE execution client — installed by scripts/install.sh, do not edit in place.
+[Unit]
+Description=RISE execution client (replica)
+After=network-online.target
+Wants=network-online.target
+PartOf=rise-replica.target
+# Retry forever — never park in "failed"
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+User=root
+EnvironmentFile=/opt/rise-node/etc/node.env
+EnvironmentFile=/opt/rise-node/etc/rise-exec.env
+# Creates /run/rise for the auth IPC socket shared with op-node
+RuntimeDirectory=rise
+RuntimeDirectoryPreserve=yes
+ExecStart=/opt/rise-node/bin/rise-exec node \
+    --chain=/opt/rise-node/etc/genesis.json \
+    --datadir=${DATA_DIR}/l2_data \
+    --http \
+    --http.api=eth,web3 \
+    --http.addr=0.0.0.0 \
+    --http.port=8545 \
+    --ws \
+    --ws.api=eth,web3 \
+    --ws.addr=0.0.0.0 \
+    --ws.port=8546 \
+    --authrpc.jwtsecret=/opt/rise-node/etc/jwt.txt \
+    --auth-ipc \
+    --auth-ipc.path=/run/rise/auth_reth.ipc \
+    --metrics=127.0.0.1:9001 \
+    --txpool.nolocals \
+    --txpool.pending_max_count=1000000 \
+    --txpool.pending_max_size=1000000 \
+    --txpool.max-account-slots=18446744073709551615 \
+    --txpool.queued-max-count=2000 \
+    --rpc-max-connections=4294967295 \
+    --rpc.gascap=${RPC_GAS_CAP} \
+    --rpc.eth-proof-window=${RPC_ETH_PROOF_WINDOW} \
+    --rpc.proof-permits=${RPC_PROOF_PERMITS} \
+    --rpc.max-request-size=4 \
+    --rpc.max-logs-per-response=5000 \
+    --rpc.max-blocks-per-filter=5000 \
+    --rpc.max-response-size=${RPC_MAX_RESPONSE_SIZE} \
+    --prune.sender-recovery.full
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+# reth needs time to flush and close the DB cleanly — don't SIGKILL it early
+TimeoutStopSec=300
+# verbose logging can exceed journald's default rate limit — don't drop lines
+LogRateLimitBurst=0
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=rise-replica.target
