@@ -4,33 +4,41 @@ Run a RISE full node, two ways: **Docker Compose** (quickest, bundled monitoring
 
 ## Requirements
 
-| | Mainnet | Testnet |
-|---|---|---|
-| Disk (local NVMe) | **3TB** (chain data ~2TB, growing) | **4TB** (syncs from genesis) |
-| RAM | **128GB** (64GB min) | 32GB+ |
-| CPU | 16 cores, >= 3.5GHz boost (per-core speed > core count) | same |
+
+|                   | Mainnet                                                 | Testnet                      |
+| ----------------- | ------------------------------------------------------- | ---------------------------- |
+| Disk (local NVMe) | **3TB**                                                 | **6TB**                      |
+| RAM               | **128GB** (64GB min)                                    | 32GB+                        |
+| CPU               | 16 cores, >= 3.5GHz boost (per-core speed > core count) | same                         |
+
 
 - **Local NVMe only** — network volumes (AWS EBS, GCP Hyperdisk/PD) are too slow regardless of IOPS. 
 - Reference shapes (what RISE runs): 
-    - AWS `i8g.4xlarge` 
-    - GCP `z3-highmem-14-standardlssd` 
-    - Bare-metal EPYC 9135 / 128GB / 2×1.92TB NVMe RAID0. 
-    - Local SSD is ephemeral — if the VM is lost, re-restore from snapshot.
+  - AWS `i8g.4xlarge` 
+  - GCP `z3-highmem-14-standardlssd` 
+  - Bare-metal EPYC 9135 / 128GB / 2×1.92TB NVMe RAID0. 
+  - Local SSD is ephemeral — if the VM is lost, re-restore from snapshot.
 - **L1 RPC without rate limits** (Sepolia for testnet, Ethereum for mainnet) — best is your own L1 node. A throttled endpoint keeps derivation below chain speed: the node **falls behind forever**. With a paid provider, set `L1_RPC_KIND=<provider>` (+ `L1_TRUST_RPC=true`) in `.env`.
 - **Firewall**: open `30003/tcp` (P2P). Block `8545`/`8546` unless serving RPC. Docker: also block `3000` (Grafana admin/admin), `9090` (Prometheus, no auth), `9001`/`7300`.
+
+
 
 ## OS support (native)
 
 Requires **glibc >= 2.30** (installer checks). `amd64` + `arm64`.
 
-| OS | glibc | Native |
-|---|---|---|
-| Ubuntu 24.04 | 2.39 | ✅ (recommended) |
-| Ubuntu 22.04 / 20.04 | 2.35 / 2.31 | ✅ |
-| Amazon Linux 2023 | 2.34 | ✅ |
-| CentOS Stream 9 / RHEL 9 / Rocky 9 / Alma 9 | 2.34 | ✅ |
-| CentOS Stream 8 / RHEL 8 | 2.28 | ❌ Docker only |
-| CentOS 7 | 2.17 | ❌ Docker only (EOL) |
+
+| OS                                          | glibc       | Native              |
+| ------------------------------------------- | ----------- | ------------------- |
+| Ubuntu 24.04                                | 2.39        | ✅ (recommended)     |
+| Ubuntu 22.04 / 20.04                        | 2.35 / 2.31 | ✅                   |
+| Amazon Linux 2023                           | 2.34        | ✅                   |
+| CentOS Stream 9 / RHEL 9 / Rocky 9 / Alma 9 | 2.34        | ✅                   |
+| CentOS Stream 8 / RHEL 8                    | 2.28        | ❌ Docker only       |
+| CentOS 7                                    | 2.17        | ❌ Docker only (EOL) |
+
+
+
 
 ## 1. Configure
 
@@ -39,6 +47,8 @@ cp env.example .env   # set L1_RPC_URL and NETWORK (testnet | mainnet)
 ```
 
 Peers, DA, version pins, tuning live in the git-managed `env.testnet` / `env.mainnet` — don't copy them into `.env`.
+
+**Upgrading from the old README?** It used to say `cp env.mainnet .env` — such a `.env` shadows every future preset update (peer rotations, DA moves, version bumps). Recreate it from `env.example`, keeping only your own values (`L1_RPC_URL`, `NETWORK`). Docker users must also switch to the new `--env-file` invocation (section 3a) — the old bare `docker compose -p rise ... up -d` now fails fast instead of silently interpolating empty values.
 
 ## 2. Snapshot — mainnet, BEFORE first start
 
@@ -71,6 +81,12 @@ Grafana at `:3000` (admin/admin).
 
 ## 3b. Run native (systemd)
 
+Switching from docker on the same host? Stop the docker stack first — it holds ports 8545/30003 (the installer refuses to start over it):
+
+```sh
+docker compose -p rise -f docker-compose.yml -f monitor.yml down
+```
+
 ```sh
 sudo ./scripts/install.sh --network testnet --data-dir /mnt/data
 ```
@@ -95,11 +111,11 @@ sudo ./scripts/install.sh          # native — restarts only if something chang
 ```
 
 ```sh
-git pull --ff-only                 # docker
+git pull --ff-only                 # docker — use env.mainnet for mainnet
 docker compose --env-file env.testnet --env-file .env -p rise -f docker-compose.yml -f monitor.yml up -d
 ```
 
-**Rollback / run any version (native)** — pin a tag in `.env` and re-run (remove the pin when done, it freezes upgrades). Tags: [rise-exec/replica-bin](https://gallery.ecr.aws/risechain/risechain-public/rise-exec/replica-bin) · [rise-op-node-bin](https://gallery.ecr.aws/risechain/risechain-public/rise-op-node-bin).
+**Rollback / run any version (native)** — pin a tag in `.env` and re-run (remove the pin when done, it freezes upgrades). Use the base tag (`sha-xxxxxxx`) — the installer appends `-amd64`/`-arm64` itself (and strips one if you paste it). Tags: [rise-exec/replica-bin](https://gallery.ecr.aws/risechain/risechain-public/rise-exec/replica-bin) · [rise-op-node-bin](https://gallery.ecr.aws/risechain/risechain-public/rise-op-node-bin).
 
 ```sh
 echo 'RISE_EXEC_TAG=<tag>' >> .env    # and/or RISE_NODE_TAG=<tag>
@@ -117,9 +133,12 @@ Rollback doesn't downgrade the database — if the newer version migrated the da
 
 ## Ports
 
-| Port | What | Bind |
-|---|---|---|
+
+| Port        | What          | Bind                         |
+| ----------- | ------------- | ---------------------------- |
 | 8545 / 8546 | HTTP RPC / WS | 0.0.0.0 — firewall as needed |
-| 30003 | P2P | open publicly |
-| 7545 | op-node RPC | loopback only |
-| 9001 / 7300 | metrics | loopback only (native) |
+| 30003       | P2P           | open publicly                |
+| 7545        | op-node RPC   | loopback only                |
+| 9001 / 7300 | metrics       | loopback only (native)       |
+
+

@@ -5,7 +5,7 @@ volumes:
 services:
   rise-exec:
     container_name: rise-exec
-    image: public.ecr.aws/risechain/risechain-public/rise-exec/replica:${RISE_EXEC_TAG:-sha-80d9780}
+    image: public.ecr.aws/risechain/risechain-public/rise-exec/replica:${RISE_EXEC_TAG:?set via --env-file env.mainnet or env.testnet}
     restart: unless-stopped
     deploy:
       ## Resource usage and Limit
@@ -53,6 +53,8 @@ services:
       - --prune.sender-recovery.full
     environment:
       - RUST_LOG=info
+      # default 0 = disabled; an empty value would make rise-exec panic at startup
+      - RISE_WITNESS_CONCURRENCY=${RISE_WITNESS_CONCURRENCY:-0}
     volumes:
       - "/mnt/data/l2_data:/db"
       - "l2_ipc:/ipc"
@@ -63,7 +65,7 @@ services:
     container_name: rise-node
     depends_on:
       - rise-exec
-    image: public.ecr.aws/risechain/risechain-public/rise-op-node:${RISE_NODE_TAG:-sha-31f2dcb}
+    image: public.ecr.aws/risechain/risechain-public/rise-op-node:${RISE_NODE_TAG:?set via --env-file env.mainnet or env.testnet}
     restart: unless-stopped
     deploy:
       ## Resource usage and Limit
@@ -76,7 +78,7 @@ services:
             cpus: 2
             memory: 12g
     ports:
-      - "7545:9545"       # rpc
+      - "7545:7545"       # rpc
       - "30003:30003/tcp"   # p2p
       - "7300:7300"       # metrics
     command:

@@ -4,9 +4,10 @@
 #   sudo ./scripts/install.sh --network testnet [--data-dir /mnt/data] [--l1-rpc <url>] [--no-start]
 #
 # Supported: Ubuntu 20.04+, Amazon Linux 2023, CentOS Stream 9 / RHEL 9 family.
-# Requires glibc >= 2.30 (rise-exec is dynamic) — CentOS 7 (2.17) and
-# CentOS/RHEL 8 (2.28) cannot run the binaries; use docker-compose there.
+# rise-exec is dynamic: needs glibc >= 2.30 — CentOS 7 / CentOS-RHEL 8 are docker-compose only.
 set -euo pipefail
+# secrets (node.env carries the L1 key) must never be world-readable, even briefly
+umask 077
 
 NETWORK=""
 DATA_DIR=""
@@ -15,15 +16,17 @@ START=true
 L1_RPC_OVERRIDE=""
 ORAS_VERSION="1.3.3"
 
-usage() { grep '^#   ' "$0" | sed 's/^#   //'; exit 1; }
+usage() { grep '^#   ' "$0" | sed 's/^#   //'; exit "${1:-1}"; }
+# value-taking flags must actually have their value (set -u would die cryptically)
+need_arg() { [ $# -ge 2 ] || { echo "ERROR: $1 requires a value" >&2; exit 1; }; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --network)  NETWORK="$2"; shift 2 ;;
-    --data-dir) DATA_DIR="$2"; DATA_DIR_FLAG="$2"; shift 2 ;;
-    --l1-rpc)   L1_RPC_OVERRIDE="$2"; shift 2 ;;
+    --network)  need_arg "$@"; NETWORK="$2"; shift 2 ;;
+    --data-dir) need_arg "$@"; DATA_DIR="$2"; DATA_DIR_FLAG="$2"; shift 2 ;;
+    --l1-rpc)   need_arg "$@"; L1_RPC_OVERRIDE="$2"; shift 2 ;;
     --no-start) START=false; shift ;;
-    -h|--help)  usage ;;
+    -h|--help)  usage 0 ;;
     *) echo "unknown option: $1" >&2; usage ;;
   esac
 done
@@ -37,7 +40,9 @@ STAGE=$(mktemp -d); trap 'rm -rf "$STAGE"' EXIT
 INSTALLED_ENV="$PREFIX/etc/node.env"
 # never fails, even before first install (pipefail-safe)
 installed_get() { sed -n "s/^$1=//p" "$INSTALLED_ENV" 2>/dev/null | head -1 || true; }
-[ -z "$NETWORK" ] && NETWORK=$(sed -n 's/^NETWORK=//p' "$REPO_DIR/.env" 2>/dev/null | head -1)
+# pipefail-safe .env lookup, tolerant of `export X=`, quoted values and CRLF
+dotenv_get() { sed -n "s/^export //;s/^$1=//p" "$REPO_DIR/.env" 2>/dev/null | head -1 | sed "s/\r\$//;s/^[\"']//;s/[\"']\$//" || true; }
+[ -z "$NETWORK" ] && NETWORK=$(dotenv_get NETWORK)
 [ -z "$NETWORK" ] && NETWORK=$(installed_get NETWORK)
 [ -n "$NETWORK" ] || { echo "ERROR: pass --network mainnet|testnet (first install)" >&2; exit 1; }
 case "$NETWORK" in mainnet|testnet) ;; *) echo "ERROR: --network must be mainnet|testnet" >&2; exit 1 ;; esac
@@ -52,23 +57,46 @@ fi
 
 ENV_FILE="$REPO_DIR/env.$NETWORK"
 [ -f "$ENV_FILE" ] || { echo "ERROR: $ENV_FILE not found" >&2; exit 1; }
-set -a; . "$ENV_FILE"; set +a
-# .env (the user's copy, shared with docker-compose) overrides the preset
+set -a
+# shellcheck source=/dev/null
+. "$ENV_FILE"
+set +a
+# .env (the user's copy, shared with docker-compose) overrides the preset.
+# Imported per-key, never shell-sourced: URLs with & or ; must stay literal.
 if [ -f "$REPO_DIR/.env" ]; then
-  dotenv_net=$(sed -n 's/^NETWORK=//p; s|^CHAIN_CONFIG_DIR=./chain/||p' "$REPO_DIR/.env" | head -1)
-  if [ -n "$dotenv_net" ] && [ "$dotenv_net" != "$NETWORK" ]; then
-    echo "ERROR: .env is configured for '$dotenv_net' but --network is '$NETWORK' — fix one of them" >&2
+  echo "==> Applying overrides from .env"
+  CHOSEN_NETWORK="$NETWORK"
+  for v in NETWORK CHAIN_CONFIG_DIR L1_RPC_URL L1_RPC_KIND L1_TRUST_RPC PUBLIC_RPC \
+           DA_SERVER P2P_STATIC RISE_EXEC_TAG RISE_NODE_TAG RISE_WITNESS_CONCURRENCY \
+           RPC_GAS_CAP RPC_ETH_PROOF_WINDOW RPC_PROOF_PERMITS RPC_MAX_RESPONSE_SIZE \
+           OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD; do
+    val=$(dotenv_get "$v")
+    if [ -n "$val" ]; then eval "$v=\$val"; fi
+  done
+  if [ "$NETWORK" != "$CHOSEN_NETWORK" ] || [ "${CHAIN_CONFIG_DIR:-./chain/$CHOSEN_NETWORK}" != "./chain/$CHOSEN_NETWORK" ]; then
+    echo "ERROR: .env repoints NETWORK/CHAIN_CONFIG_DIR away from '$CHOSEN_NETWORK' — fix .env or --network" >&2
     exit 1
   fi
-  echo "==> Applying overrides from .env"
-  set -a; . "$REPO_DIR/.env"; set +a
+  # old README said `cp env.mainnet .env`: frozen copies shadow preset updates forever
+  for v in P2P_STATIC DA_SERVER PUBLIC_RPC CHAIN_CONFIG_DIR; do
+    if [ -n "$(dotenv_get "$v")" ]; then
+      echo "WARNING: $v in .env overrides the git-managed $NETWORK preset — remove it unless deliberate"
+    fi
+  done
 fi
 [ -n "${DATA_DIR_FLAG:-}" ] && DATA_DIR="$DATA_DIR_FLAG"
+# a changed datadir would restart the node on an empty DB — moving it is manual
+installed_dd=$(installed_get DATA_DIR)
+if [ -n "$installed_dd" ] && [ "$installed_dd" != "$DATA_DIR" ]; then
+  echo "ERROR: this host already uses data dir '$installed_dd' (requested '$DATA_DIR')." >&2
+  echo "       To move it: stop rise-replica.target, move the data, edit $INSTALLED_ENV, re-run." >&2
+  exit 1
+fi
 [ -n "$L1_RPC_OVERRIDE" ] && L1_RPC_URL="$L1_RPC_OVERRIDE"
 [ -z "${L1_RPC_URL:-}" ] && L1_RPC_URL=$(installed_get L1_RPC_URL)
 [ -n "${L1_RPC_URL:-}" ] || { echo "ERROR: L1_RPC_URL is empty — set it in .env or pass --l1-rpc" >&2; exit 1; }
 # Version pins live in env.<network> (git) — pinning them in .env freezes upgrades
-if grep -q '^RISE_EXEC_TAG=..*\|^RISE_NODE_TAG=..*' "$REPO_DIR/.env" 2>/dev/null; then
+if [ -n "$(dotenv_get RISE_EXEC_TAG)$(dotenv_get RISE_NODE_TAG)" ]; then
   echo "NOTE: RISE_EXEC_TAG/RISE_NODE_TAG pinned in .env override the git preset — upgrades won't apply until you remove them"
 fi
 for v in RISE_EXEC_TAG RISE_NODE_TAG DA_SERVER P2P_STATIC; do
@@ -78,6 +106,10 @@ done
 EXEC_ARTIFACT="public.ecr.aws/risechain/risechain-public/rise-exec/replica-bin"
 NODE_ARTIFACT="public.ecr.aws/risechain/risechain-public/rise-op-node-bin"
 
+# tolerate arch-suffixed tags copied from the ECR gallery — fetch appends -$ARCH itself
+RISE_EXEC_TAG=${RISE_EXEC_TAG%-amd64}; RISE_EXEC_TAG=${RISE_EXEC_TAG%-arm64}
+RISE_NODE_TAG=${RISE_NODE_TAG%-amd64}; RISE_NODE_TAG=${RISE_NODE_TAG%-arm64}
+
 case "$(uname -m)" in
   x86_64)        ARCH=amd64; ARCH_MARKER="x86-64" ;;
   aarch64|arm64) ARCH=arm64; ARCH_MARKER="aarch64" ;;
@@ -86,7 +118,9 @@ esac
 
 # --- OS detection -------------------------------------------------------------
 . /etc/os-release
-SYSTEMD_VERSION=$(systemctl --version | head -1 | awk '{print $2}' | grep -o '^[0-9]*')
+command -v systemctl >/dev/null 2>&1 || { echo "ERROR: systemd is required for the native install — use docker-compose instead" >&2; exit 1; }
+SYSTEMD_VERSION=$(systemctl --version | head -1 | awk '{print $2}' | grep -o '^[0-9]*' || true)
+[ -n "$SYSTEMD_VERSION" ] || { echo "ERROR: cannot parse systemd version from 'systemctl --version'" >&2; exit 1; }
 echo "==> OS: $PRETTY_NAME · systemd $SYSTEMD_VERSION · arch $ARCH · network $NETWORK"
 
 # rise-exec links against glibc — fail fast on distros that can't run it
@@ -95,6 +129,19 @@ GLIBC_VER=$(ldd --version 2>/dev/null | head -1 | grep -o '[0-9][0-9]*\.[0-9][0-
 if [ -n "$GLIBC_VER" ] && [ "$(printf '%s\n' "$GLIBC_MIN" "$GLIBC_VER" | sort -V | head -1)" != "$GLIBC_MIN" ]; then
   echo "ERROR: glibc $GLIBC_VER < $GLIBC_MIN — this OS cannot run the native binaries." >&2
   echo "       CentOS 7 / CentOS-RHEL 8 are docker-only: use docker-compose instead." >&2
+  exit 1
+fi
+
+# a live docker stack keeps 8545/30003 busy and its RPC would fool the health check
+if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null | grep -Eqx 'rise-exec|rise-node'; then
+  echo "ERROR: docker containers rise-exec/rise-node are running — stop them first:" >&2
+  echo "       docker compose -p rise -f docker-compose.yml -f monitor.yml down" >&2
+  exit 1
+fi
+# same trap for any other squatter on the RPC port (only our own service may hold it)
+if ! systemctl is-active --quiet rise-exec.service 2>/dev/null \
+  && ss -Hltn 'sport = :8545' 2>/dev/null | grep -q .; then
+  echo "ERROR: something is already listening on :8545 — stop it before installing the native node" >&2
   exit 1
 fi
 
@@ -109,12 +156,17 @@ pkg_install() {
 }
 
 echo "==> Installing dependencies"
-pkg_install curl tar file openssl python3 zstd >/dev/null
+# only install what's missing — on AL2023 `dnf install curl` conflicts with curl-minimal
+missing=()
+for c in curl tar gzip file openssl python3 zstd; do
+  command -v "$c" >/dev/null 2>&1 || missing+=("$c")
+done
+if [ "${#missing[@]}" -gt 0 ]; then pkg_install "${missing[@]}" >/dev/null; fi
 # aria2 is optional (snapshot downloads) and missing from AL2023/RHEL9 base repos
-pkg_install aria2 >/dev/null 2>&1 || true
+command -v aria2c >/dev/null 2>&1 || pkg_install aria2 >/dev/null 2>&1 || true
 
 # --- oras (anonymous OCI artifact pulls from public ECR) ------------------------
-if ! command -v oras >/dev/null 2>&1 || ! oras version 2>/dev/null | grep -q "$ORAS_VERSION"; then
+if ! command -v oras >/dev/null 2>&1 || ! oras version 2>/dev/null | grep -qF "$ORAS_VERSION"; then
   echo "==> Installing oras $ORAS_VERSION"
   tmp="$STAGE/oras"
   mkdir -p "$tmp"
@@ -128,17 +180,24 @@ if ! command -v oras >/dev/null 2>&1 || ! oras version 2>/dev/null | grep -q "$O
 fi
 
 # --- Layout & config -----------------------------------------------------------
-# Tracks whether anything a running service depends on changed (restart trigger)
-CHANGED=0
+# restart intent = on-disk markers: a run that fails midway must not lose it
+mark_restart() {
+  case "$1" in exec|both) touch "$PREFIX/etc/.restart-exec" ;; esac
+  case "$1" in node|both) touch "$PREFIX/etc/.restart-node" ;; esac
+}
+# copy_if_changed <src> <dst> <exec|node|both|none>: cp on diff + mark restart scope
 copy_if_changed() {
-  if ! cmp -s "$1" "$2" 2>/dev/null; then cp "$1" "$2"; CHANGED=1; fi
+  if ! cmp -s "$1" "$2" 2>/dev/null; then
+    cp "$1" "$2"
+    mark_restart "$3"
+  fi
 }
 
 echo "==> Creating layout under $PREFIX"
 mkdir -p "$PREFIX"/{bin,versions,etc} "$DATA_DIR"
 
-copy_if_changed "$REPO_DIR/chain/$NETWORK/genesis.json" "$PREFIX/etc/genesis.json"
-copy_if_changed "$REPO_DIR/chain/$NETWORK/rollup.json" "$PREFIX/etc/rollup.json"
+copy_if_changed "$REPO_DIR/chain/$NETWORK/genesis.json" "$PREFIX/etc/genesis.json" exec
+copy_if_changed "$REPO_DIR/chain/$NETWORK/rollup.json" "$PREFIX/etc/rollup.json" node
 
 if [ ! -f "$PREFIX/etc/jwt.txt" ]; then
   (umask 077 && openssl rand -hex 32 | tr -d '\n' > "$PREFIX/etc/jwt.txt")
@@ -151,7 +210,7 @@ cat > "$STAGE/node.env" <<EOF
 NETWORK=$NETWORK
 DATA_DIR=$DATA_DIR
 L1_RPC_URL=$L1_RPC_URL
-PUBLIC_RPC=${PUBLIC_RPC:-}
+OP_NODE_L1_ETH_RPC=$L1_RPC_URL
 DA_SERVER=$DA_SERVER
 P2P_STATIC=$P2P_STATIC
 RPC_GAS_CAP=${RPC_GAS_CAP:-64000000}
@@ -181,9 +240,14 @@ EOF
   [ -n "${L1_TRUST_RPC:-}" ] && echo "OP_NODE_L1_TRUST_RPC=$L1_TRUST_RPC"
   true
 } >> "$STAGE/op-node.env"
-for f in node.env rise-exec.env op-node.env; do
-  copy_if_changed "$STAGE/$f" "$PREFIX/etc/$f"
-done
+# riseops-only metadata: changing it must not restart either service
+printf 'PUBLIC_RPC=%s\n' "${PUBLIC_RPC:-}" > "$STAGE/riseops.env"
+# a node.env from old installs may be 0644 — tighten before cp rewrites in place
+[ -f "$PREFIX/etc/node.env" ] && chmod 0600 "$PREFIX/etc/node.env"
+copy_if_changed "$STAGE/node.env" "$PREFIX/etc/node.env" both
+copy_if_changed "$STAGE/rise-exec.env" "$PREFIX/etc/rise-exec.env" exec
+copy_if_changed "$STAGE/op-node.env" "$PREFIX/etc/op-node.env" node
+copy_if_changed "$STAGE/riseops.env" "$PREFIX/etc/riseops.env" none
 chmod 0600 "$PREFIX/etc/node.env"
 
 # --- Fetch binaries (versioned store + atomic symlink switch) -------------------
@@ -208,7 +272,7 @@ fetch_component() {
       case "$ldd_out" in *"not found"*)
         echo "ERROR: $comp cannot run on this OS (libc too old?):" >&2
         echo "$ldd_out" | grep "not found" >&2
-        echo "Hint: glibc >= 2.30 required — on older distros use docker-compose instead." >&2
+        echo "Hint: glibc >= $GLIBC_MIN required — on older distros use docker-compose instead." >&2
         exit 1 ;;
       esac
       chmod 0755 "$comp"
@@ -222,7 +286,7 @@ fetch_component() {
   fi
   if [ "$(readlink "$PREFIX/bin/$comp" 2>/dev/null || true)" != "$ver_dir/$comp" ]; then
     ln -sfn "$ver_dir/$comp" "$PREFIX/bin/$comp"
-    CHANGED=1
+    case "$comp" in rise-exec) mark_restart exec ;; op-node) mark_restart node ;; esac
   fi
   echo "    $comp -> $tag"
 }
@@ -245,17 +309,25 @@ if [ "$SYSTEMD_VERSION" -lt 230 ]; then
   sed -i '/^StartLimitIntervalSec=/d' "$STAGE"/rise-{exec,node}.service "$STAGE/rise-replica.target"
   sed -i '/^\[Service\]/a StartLimitInterval=0' "$STAGE"/rise-{exec,node}.service
 fi
-for unit in rise-exec.service rise-node.service rise-replica.target; do
-  copy_if_changed "$STAGE/$unit" "/etc/systemd/system/$unit"
-done
+copy_if_changed "$STAGE/rise-exec.service" "/etc/systemd/system/rise-exec.service" exec
+copy_if_changed "$STAGE/rise-node.service" "/etc/systemd/system/rise-node.service" node
+copy_if_changed "$STAGE/rise-replica.target" "/etc/systemd/system/rise-replica.target" none
 
 install -m 0755 "$REPO_DIR/scripts/riseops" /usr/local/bin/riseops
 systemctl daemon-reload
 
-# Re-runs (version bump, config change) must actually reach the running node
-if [ "$START" = true ] && [ "$CHANGED" = 1 ] && systemctl is-active --quiet rise-exec.service; then
-  echo "==> Restarting services to apply changes"
-  systemctl try-restart rise-exec.service rise-node.service
+# Re-runs must reach running services; try-restart is a no-op for inactive units
+if [ "$START" = true ]; then
+  if [ -f "$PREFIX/etc/.restart-exec" ]; then
+    echo "==> Restarting rise-exec to apply changes"
+    systemctl try-restart rise-exec.service
+    rm -f "$PREFIX/etc/.restart-exec"
+  fi
+  if [ -f "$PREFIX/etc/.restart-node" ]; then
+    echo "==> Restarting rise-node to apply changes"
+    systemctl try-restart rise-node.service
+    rm -f "$PREFIX/etc/.restart-node"
+  fi
 fi
 
 if [ "$START" = true ]; then
@@ -263,15 +335,18 @@ if [ "$START" = true ]; then
   systemctl enable --now rise-replica.target
 
   echo "==> Health check (waiting for RPC on :8545)"
-  for _ in $(seq 1 30); do
+  for _ in $(seq 1 60); do
     b1=$(curl -sf -m 3 -H 'content-type: application/json' \
       -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
       http://127.0.0.1:8545 | python3 -c 'import sys,json;print(int(json.load(sys.stdin)["result"],16))' 2>/dev/null) && break
     sleep 10
   done
-  [ -n "${b1:-}" ] || { echo "ERROR: rise-exec RPC did not come up — journalctl -u rise-exec" >&2; exit 1; }
+  [ -n "${b1:-}" ] || { echo "ERROR: RPC not up after 10m — big datadirs can init longer; check journalctl -u rise-exec / riseops before assuming failure" >&2; exit 1; }
   echo "    head at block $b1 — run 'riseops' to watch sync progress"
 else
   echo "==> Staged only (--no-start): systemctl enable --now rise-replica.target"
+  if systemctl is-active --quiet rise-exec.service 2>/dev/null || systemctl is-active --quiet rise-node.service 2>/dev/null; then
+    echo "WARNING: services are running — staged binaries/config are already live on disk and any restart (including crash-respawn) picks them up"
+  fi
 fi
 echo "==> Done"

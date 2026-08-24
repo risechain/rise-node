@@ -12,11 +12,12 @@ Type=exec
 User=root
 EnvironmentFile=/opt/rise-node/etc/node.env
 EnvironmentFile=/opt/rise-node/etc/op-node.env
+# --l1 is set via OP_NODE_L1_ETH_RPC in node.env — argv leaks through /proc
 ExecStart=/opt/rise-node/bin/op-node \
-    --l1=${L1_RPC_URL} \
     --l2=/run/rise/auth_reth.ipc \
     --l2.jwt-secret=/opt/rise-node/etc/jwt.txt \
     --rollup.config=/opt/rise-node/etc/rollup.json \
+    --safedb.path=${DATA_DIR}/safedb_data \
     --rpc.addr=127.0.0.1 \
     --rpc.port=7545 \
     --p2p.priv.path=/opt/rise-node/etc/p2p-node-key.txt \
@@ -33,7 +34,7 @@ RestartSec=5
 NoNewPrivileges=true
 PrivateTmp=true
 TimeoutStopSec=60
-# DEBUG logging can exceed journald's default rate limit — don't drop lines
+# op-node bursts can exceed journald's default rate limit — don't drop lines
 LogRateLimitBurst=0
 LimitNOFILE=65536
 

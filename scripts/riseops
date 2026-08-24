@@ -7,7 +7,7 @@ ETC_DIR="/opt/rise-node/etc"
 EXEC_RPC="http://127.0.0.1:8545"
 NODE_RPC="http://127.0.0.1:7545"
 NETWORK=$(sed -n 's/^NETWORK=//p' "$ETC_DIR/node.env" 2>/dev/null || echo "?")
-PUBLIC_RPC=$(sed -n 's/^PUBLIC_RPC=//p' "$ETC_DIR/node.env" 2>/dev/null || true)
+PUBLIC_RPC=$(sed -n 's/^PUBLIC_RPC=//p' "$ETC_DIR/riseops.env" 2>/dev/null || true)
 
 if [ -t 1 ]; then
   BOLD=$'\e[1m'; DIM=$'\e[2m'; RED=$'\e[31m'; GRN=$'\e[32m'; YLW=$'\e[33m'; RST=$'\e[0m'
