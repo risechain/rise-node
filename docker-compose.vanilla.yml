@@ -5,7 +5,8 @@ volumes:
 services:
   rise-exec:
     container_name: rise-exec
-    image: public.ecr.aws/risechain/risechain-public/rise-exec/replica:${RISE_EXEC_TAG:?set via --env-file env.mainnet or env.testnet}
+    # Update your image here
+    image: <your-registry>/op-reth:<tag>
     restart: unless-stopped
     # reth needs time to flush and close the DB cleanly — don't SIGKILL it early
     stop_grace_period: 300s
@@ -67,7 +68,8 @@ services:
     container_name: rise-node
     depends_on:
       - rise-exec
-    image: public.ecr.aws/risechain/risechain-public/rise-op-node:${RISE_NODE_TAG:?set via --env-file env.mainnet or env.testnet}
+    # Update your image here
+    image: <your-registry>/op-node:<tag>
     restart: unless-stopped
     stop_grace_period: 60s
     deploy:
@@ -87,6 +89,7 @@ services:
     command:
       - op-node
       - --l1=${L1_RPC_URL:?set L1_RPC_URL in .env}
+      - --l1.beacon.ignore=true
       - --l2=/ipc/auth_reth.ipc
       - --l2.jwt-secret=/config/jwt.txt
       - --rollup.config=/rollup.json
@@ -95,12 +98,12 @@ services:
       - --p2p.static=${P2P_STATIC}
       - --p2p.listen.ip=0.0.0.0
       - --p2p.listen.tcp=30003
-      - --p2p.static.follow-reorg
       - --metrics.enabled
       - --metrics.addr=0.0.0.0
       - --metrics.port=7300
-      - --safedb.path=/db/safedb_data
       - --altda.da-server=${DA_SERVER}
+      - --altda.enabled=true
+      - --altda.da-service=true
     environment:
       - OP_NODE_L1_EPOCH_POLL_INTERVAL=12s
       - OP_NODE_L1_HTTP_POLL_INTERVAL=6s
@@ -113,7 +116,6 @@ services:
       - OP_NODE_L1_RPC_KIND=${L1_RPC_KIND:-standard}
       - OP_NODE_L1_TRUST_RPC=${L1_TRUST_RPC:-false}
     volumes:
-      - "/mnt/data/safedb_data:/db/safedb_data"
       - "./jwt.txt:/config/jwt.txt"
       - "${CHAIN_CONFIG_DIR}/rollup.json:/rollup.json"
       - "l2_ipc:/ipc"
