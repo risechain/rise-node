@@ -7,6 +7,8 @@ services:
     container_name: rise-exec
     image: public.ecr.aws/risechain/risechain-public/rise-exec/replica:${RISE_EXEC_TAG:?set via --env-file env.mainnet or env.testnet}
     restart: unless-stopped
+    # reth needs time to flush and close the DB cleanly — don't SIGKILL it early
+    stop_grace_period: 300s
     deploy:
       ## Resource usage and Limit
       # Depend on your system
@@ -67,6 +69,7 @@ services:
       - rise-exec
     image: public.ecr.aws/risechain/risechain-public/rise-op-node:${RISE_NODE_TAG:?set via --env-file env.mainnet or env.testnet}
     restart: unless-stopped
+    stop_grace_period: 60s
     deploy:
       ## Resource usage and Limit
       # Depend on your system
@@ -78,17 +81,16 @@ services:
             cpus: 2
             memory: 12g
     ports:
-      - "7545:7545"       # rpc
-      - "30003:30003/tcp"   # p2p
+      - "7545:7545"       # op-node rpc
+      - "30003:30003/tcp" # p2p
       - "7300:7300"       # metrics
     command:
       - op-node
-      - --l1=${L1_RPC_URL}
+      - --l1=${L1_RPC_URL:?set L1_RPC_URL in .env}
       - --l2=/ipc/auth_reth.ipc
       - --l2.jwt-secret=/config/jwt.txt
       - --rollup.config=/rollup.json
       - --rpc.port=7545
-      - --rpc.enable-admin
       - --p2p.priv.path=/config/p2p-node-key.txt
       - --p2p.static=${P2P_STATIC}
       - --p2p.listen.ip=0.0.0.0

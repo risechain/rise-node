@@ -19,7 +19,7 @@ Run a RISE full node, two ways: **Docker Compose** (quickest, bundled monitoring
   - Bare-metal EPYC 9135 / 128GB / 2×1.92TB NVMe RAID0. 
   - Local SSD is ephemeral — if the VM is lost, re-restore from snapshot.
 - **L1 RPC without rate limits** (Sepolia for testnet, Ethereum for mainnet) — best is your own L1 node. A throttled endpoint keeps derivation below chain speed: the node **falls behind forever**. With a paid provider, set `L1_RPC_KIND=<provider>` (+ `L1_TRUST_RPC=true`) in `.env`.
-- **Firewall**: open `30003/tcp` (P2P). Block `8545`/`8546` unless serving RPC. Docker: also block `3000` (Grafana admin/admin), `9090` (Prometheus, no auth), `9001`/`7300`.
+- **Firewall**: open `30003/tcp` (P2P). Block `8545`/`8546` unless serving RPC. Docker: also block `3000` (Grafana admin/admin), `9090` (Prometheus, no auth), `7545`, `9001`/`7300`.
 
 
 
@@ -71,8 +71,9 @@ Switching from a genesis-synced node: stop it, delete `l2_data` + `safedb_data`,
 
 ```sh
 ./generate-jwt.sh
-# use env.mainnet for mainnet; needs docker compose >= 2.17
-docker compose --env-file env.testnet --env-file .env -p rise -f docker-compose.yml -f monitor.yml up -d
+# NETWORK comes from .env; two --env-file needs docker compose >= 2.17
+NETWORK=$(sed -n 's/^NETWORK=//p' .env)
+docker compose --env-file "env.$NETWORK" --env-file .env -p rise -f docker-compose.yml -f monitor.yml up -d
 ```
 
 Grafana at `:3000` (admin/admin).
@@ -84,7 +85,8 @@ Grafana at `:3000` (admin/admin).
 Switching from docker on the same host? Stop the docker stack first — it holds ports 8545/30003 (the installer refuses to start over it):
 
 ```sh
-docker compose -p rise -f docker-compose.yml -f monitor.yml down
+NETWORK=$(sed -n 's/^NETWORK=//p' .env)
+docker compose --env-file "env.$NETWORK" --env-file .env -p rise -f docker-compose.yml -f monitor.yml down
 ```
 
 ```sh
@@ -111,8 +113,9 @@ sudo ./scripts/install.sh          # native — restarts only if something chang
 ```
 
 ```sh
-git pull --ff-only                 # docker — use env.mainnet for mainnet
-docker compose --env-file env.testnet --env-file .env -p rise -f docker-compose.yml -f monitor.yml up -d
+git pull --ff-only                 # docker
+NETWORK=$(sed -n 's/^NETWORK=//p' .env)
+docker compose --env-file "env.$NETWORK" --env-file .env -p rise -f docker-compose.yml -f monitor.yml up -d
 ```
 
 **Rollback / run any version (native)** — pin a tag in `.env` and re-run (remove the pin when done, it freezes upgrades). Use the base tag (`sha-xxxxxxx`) — the installer appends `-amd64`/`-arm64` itself (and strips one if you paste it). Tags: [rise-exec/replica-bin](https://gallery.ecr.aws/risechain/risechain-public/rise-exec/replica-bin) · [rise-op-node-bin](https://gallery.ecr.aws/risechain/risechain-public/rise-op-node-bin).
@@ -138,7 +141,7 @@ Rollback doesn't downgrade the database — if the newer version migrated the da
 | ----------- | ------------- | ---------------------------- |
 | 8545 / 8546 | HTTP RPC / WS | 0.0.0.0 — firewall as needed |
 | 30003       | P2P           | open publicly                |
-| 7545        | op-node RPC   | loopback only                |
+| 7545        | op-node RPC   | loopback only (native)       |
 | 9001 / 7300 | metrics       | loopback only (native)       |
 
 
