@@ -103,6 +103,26 @@ journalctl -u rise-exec -f                 # logs (or -u rise-node)
 
 `lagging`/`STALLED` is expected until the node reaches the tip. Metrics are loopback-only; `monitor.yml` is docker-only.
 
+## 3c. Run with your own upstream binaries (advanced)
+
+For running `op-reth` + `op-node` built from upstream sources (e.g. `github.com/ethereum-optimism/optimism` for op-node) instead of RISE's pinned images. Use this to audit, patch, or track upstream ahead of a RISE release — not for production replicas.
+
+**Build & push** two images to a registry you control:
+
+- `op-reth` — from upstream reth (OP variant).
+- `op-node` — from upstream `optimism/op-node`.
+
+**Wire it up** — edit `docker-compose.vanilla.yml` and replace both `image:` placeholders (`<your-registry>/op-reth:<tag>`, `<your-registry>/op-node:<tag>`) with what you built.
+
+**Run** — same env plumbing as 3a, different compose file:
+
+```sh
+./generate-jwt.sh
+NETWORK=$(sed -n 's/^NETWORK=//p' .env)
+docker compose --env-file "env.$NETWORK" --env-file .env -p rise -f docker-compose.vanilla.yml up -d
+# add `-f monitor.yml` for Grafana/Prometheus
+```
+
 ## Upgrade / rollback
 
 Release info (version pins, chain files, unit flags) ships via git:
