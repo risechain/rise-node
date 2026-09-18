@@ -99,7 +99,6 @@ services:
       - --metrics.enabled
       - --metrics.addr=0.0.0.0
       - --metrics.port=7300
-      - --safedb.path=/db/safedb_data
       - --altda.da-server=${DA_SERVER}
     environment:
       - OP_NODE_L1_EPOCH_POLL_INTERVAL=12s
@@ -113,7 +112,6 @@ services:
       - OP_NODE_L1_RPC_KIND=${L1_RPC_KIND:-standard}
       - OP_NODE_L1_TRUST_RPC=${L1_TRUST_RPC:-false}
     volumes:
-      - "/mnt/data/safedb_data:/db/safedb_data"
       - "./jwt.txt:/config/jwt.txt"
       - "${CHAIN_CONFIG_DIR}/rollup.json:/rollup.json"
       - "l2_ipc:/ipc"

@@ -17,7 +17,6 @@ ExecStart=/opt/rise-node/bin/op-node \
     --l2=/run/rise/auth_reth.ipc \
     --l2.jwt-secret=/opt/rise-node/etc/jwt.txt \
     --rollup.config=/opt/rise-node/etc/rollup.json \
-    --safedb.path=${DATA_DIR}/safedb_data \
     --rpc.addr=127.0.0.1 \
     --rpc.port=7545 \
     --p2p.priv.path=/opt/rise-node/etc/p2p-node-key.txt \
