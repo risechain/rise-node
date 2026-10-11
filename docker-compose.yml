@@ -29,11 +29,11 @@ services:
       - --datadir=/db
       - --http
       - --http.api=eth,web3
-      - --http.addr=0.0.0.0
+      - --http.addr=127.0.0.1
       - --http.port=8545
       - --ws
       - --ws.api=eth,web3
-      - --ws.addr=0.0.0.0
+      - --ws.addr=127.0.0.1
       - --ws.port=8546
       - --authrpc.jwtsecret=/config/jwt.txt
       - --auth-ipc
