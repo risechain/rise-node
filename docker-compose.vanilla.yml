@@ -55,7 +55,7 @@ services:
       - --rpc.max-response-size=${RPC_MAX_RESPONSE_SIZE:-500}
       - --prune.sender-recovery.full
     environment:
-      - RUST_LOG=info
+      - RUST_LOG=${RUST_LOG:-info}
       # default 0 = disabled; an empty value would make rise-exec panic at startup
       - RISE_WITNESS_CONCURRENCY=${RISE_WITNESS_CONCURRENCY:-0}
     volumes:
@@ -112,7 +112,7 @@ services:
       - OP_NODE_VERIFIER_L1_CONFS=12
       - OP_NODE_ALTDA_MAX_CONCURRENT_DA_REQUESTS=5
       - OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD=${OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD:-45m0s}
-      - OP_NODE_LOG_LEVEL=DEBUG
+      - OP_NODE_LOG_LEVEL=${OP_NODE_LOG_LEVEL:-DEBUG}
       - OP_NODE_L1_RPC_KIND=${L1_RPC_KIND:-standard}
       - OP_NODE_L1_TRUST_RPC=${L1_TRUST_RPC:-false}
     volumes:

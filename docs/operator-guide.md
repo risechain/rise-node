@@ -13,8 +13,14 @@ Commands are run from the repo checkout. **For Docker, define this helper once p
 
 ```sh
 NETWORK=$(sed -n 's/^NETWORK=//p' .env)
-dc() { docker compose --env-file "env.$NETWORK" --env-file .env -p rise -f docker-compose.yml "$@"; }
+dc() {
+  [ -f docker-compose.override.yml ] && set -- -f docker-compose.override.yml "$@"
+  docker compose --env-file "env.$NETWORK" --env-file .env -p rise -f docker-compose.yml -f monitor.yml "$@"
+}
 ```
+
+It matches the README commands (`monitor.yml` included) and picks up `docker-compose.override.yml`
+whenever it exists, so `dc up -d` on upgrade never silently drops your overrides.
 
 ## 1. How a node works
 
@@ -25,7 +31,8 @@ dc() { docker compose --env-file "env.$NETWORK" --env-file .env -p rise -f docke
 | Stack | Starts/stops both together | `rise-replica.target` | compose project `rise` |
 
 The two talk over an authenticated IPC socket: `/run/rise/auth_reth.ipc` (systemd) or
-the shared `l2_ipc` volume (Docker). **After restarting `rise-exec`, restart `op-node` too.**
+the shared `l2_ipc` volume (Docker). **After restarting `rise-exec`, restart `op-node` too**
+(`install.sh` does this for you when it restarts rise-exec).
 Otherwise op-node can hold a stale connection.
 
 Where each head comes from. This tells you where to look when one lags:
@@ -61,11 +68,37 @@ On systemd, everything under `/opt/rise-node/etc` and the unit files is **rewrit
 | Port | Service | systemd bind | Docker bind | Expose publicly? |
 |---|---|---|---|---|
 | 8545 / 8546 | RPC HTTP / WS | `0.0.0.0` | `0.0.0.0` | only if you serve RPC |
-| 30003/tcp | op-node P2P | `0.0.0.0` | `0.0.0.0` | **yes**, the static peers must reach it, in and out |
+| 30003/tcp | op-node P2P | `0.0.0.0` | `0.0.0.0` | not needed: the node dials the static peers, so only **outbound** to their 30003 must be allowed |
 | 7545 | op-node RPC | `127.0.0.1` | `0.0.0.0` | **no** |
 | 9001 / 7300 | metrics (rise-exec / op-node) | `127.0.0.1` | `0.0.0.0` | **no** |
 
-Docker publishes every port on all interfaces, so close what you don't serve in your host or cloud firewall.
+Docker publishes every port on all interfaces, and its iptables rules **bypass host firewalls such as ufw**
+([Docker docs](https://docs.docker.com/engine/network/packet-filtering-firewalls/#docker-and-ufw)).
+Keep 7545, the metrics ports and Grafana / Prometheus (3000 / 9090) private by binding them to loopback in `docker-compose.override.yml`
+(`!override` needs Docker Compose v2.24.4+), or block them in your cloud firewall:
+
+```yaml
+services:
+  rise-exec:
+    ports: !override
+      - "8545:8545"
+      - "8546:8546"
+      - "127.0.0.1:9001:9001"
+  rise-node:
+    ports: !override
+      - "127.0.0.1:7545:7545"
+      - "30003:30003/tcp"
+      - "127.0.0.1:7300:7300"
+  prometheus:
+    ports: !override
+      - "127.0.0.1:9090:9090"
+  grafana:
+    ports: !override
+      - "127.0.0.1:3000:3000"
+```
+
+The bundled Prometheus scrapes over the compose network, so it keeps working.
+Reach Grafana / Prometheus through an SSH tunnel, e.g. `ssh -L 3000:127.0.0.1:3000 <host>`.
 
 ## 3. Everyday commands
 
@@ -102,8 +135,8 @@ curl -s -H 'content-type: application/json' \
 # compare with the network (PUBLIC_RPC from env.<network>)
 cast bn -r "$(sed -n 's/^PUBLIC_RPC=//p' "env.$NETWORK")"
 
-# rise-exec internals
-curl -s 127.0.0.1:9001 | grep -E '^reth_(sync|blockchain_tree|engine)' | head
+# rise-exec internals: canonical / safe / finalized heads and engine API calls
+curl -s 127.0.0.1:9001/metrics | grep -E '^reth_chain_(head_|engine_[a-z_]*(fails|messages) )'
 
 # op-node: unsafe / safe / finalized heads and peer count
 curl -s 127.0.0.1:7300/metrics | grep -E 'op_node_default_refs_number|peer_count'
@@ -118,40 +151,26 @@ curl -s 127.0.0.1:7300/metrics | grep -E 'op_node_default_refs_number|peer_count
 | rise-exec | `RUST_LOG` | `info` | `info` |
 | op-node | `OP_NODE_LOG_LEVEL` | `INFO` | `DEBUG` |
 
-Prefer narrow filters over global debug, e.g. `RUST_LOG=info,engine=debug`. Global `debug`/`trace` is very noisy.
+Prefer narrow filters over global debug, e.g. `RUST_LOG=info,rise=debug` (all RISE components).
+Global `debug`/`trace` is very noisy.
 
-**systemd:** use a drop-in. It survives installer re-runs.
+Set them in `.env`, like any other override, then re-apply:
 
 ```sh
-sudo systemctl edit rise-exec        # opens an editor; add:
-#   [Service]
-#   Environment=RUST_LOG=info,engine=debug
-sudo systemctl restart rise-exec && sudo systemctl restart rise-node
-
-sudo systemctl revert rise-exec      # remove the drop-in when done, then restart again
-```
-
-Same for op-node: `systemctl edit rise-node` with `Environment=OP_NODE_LOG_LEVEL=DEBUG`.
-
-**Docker:** add an override file. Because the `dc` helper passes `-f`, compose does not load
-`docker-compose.override.yml` automatically, so add it explicitly:
-
-```yaml
-# docker-compose.override.yml
-services:
-  rise-exec:
-    environment:
-      - RUST_LOG=info,engine=debug
-  rise-node:
-    environment:
-      - OP_NODE_LOG_LEVEL=INFO
+# .env
+RUST_LOG=info,rise=debug
+OP_NODE_LOG_LEVEL=DEBUG
 ```
 
 ```sh
-dc -f docker-compose.override.yml up -d
+sudo ./scripts/install.sh            # systemd: rewrites the env files, restarts what changed
+dc up -d                             # Docker: recreates the containers whose env changed
+
+# systemd: check what the running process got
+sudo cat /proc/$(systemctl show -p MainPID --value rise-exec)/environ | tr '\0' '\n' | grep RUST_LOG
 ```
 
-To go back, delete the file and run `dc up -d`.
+To go back, delete the lines from `.env` and re-apply.
 
 ### Extra flags
 
@@ -175,7 +194,7 @@ Default: `eth,web3` on both HTTP (8545) and WS (8546), set by the rise-exec flag
 To change them, edit those two flags the same way as [extra flags](#extra-flags):
 
 - **systemd:** drop-in that redefines `ExecStart=` (`systemctl edit rise-exec`), then restart rise-exec and op-node.
-- **Docker:** override `command:` for `rise-exec` in `docker-compose.override.yml`, then `dc -f docker-compose.override.yml up -d`.
+- **Docker:** override `command:` for `rise-exec` in `docker-compose.override.yml`, then `dc up -d`.
 
 ## 6. Common issues
 
@@ -183,7 +202,7 @@ Start every investigation with the status (`riseops` or section 4) and the last 
 
 | Symptom | Likely cause | Check | Fix |
 |---|---|---|---|
-| Unsafe head lags, `peer_count` is 0 or low | The host can't reach the static peers. They are the only source of new blocks | [peer check](#peer-reachability-check) below | Open 30003/tcp **in both directions** (host firewall, cloud security group, provider network), then restart op-node. Check `P2P_STATIC` isn't overridden by a stale `.env` |
+| Unsafe head lags, `peer_count` is 0 or low | The host can't reach the static peers. They are the only source of new blocks | [peer check](#peer-reachability-check) below | Allow **outbound** TCP to the static peers' 30003 (host firewall, cloud security group, provider network), then restart op-node. Check `P2P_STATIC` isn't overridden by a stale `.env` |
 | Safe/finalized head lags or stalls, unsafe fine | L1 RPC throttled/failing, or the DA server unreachable | op-node logs: `grep -iE 'l1\|altda\|da-server\|429\|rate'` | Use an L1 RPC without rate limits (ideally your own). With a paid provider set `L1_RPC_KIND` (+ `L1_TRUST_RPC=true`) in `.env`. A throttled L1 keeps the node behind forever |
 | Head far behind and advancing slowly, never catching up | Same as above. On mainnet, also a missing snapshot (syncing from genesis) | Compare `cast bn` with `PUBLIC_RPC` over a few minutes | Fix L1 first. Mainnet: start from a snapshot (README section 2) |
 | op-node logs engine/IPC errors after a rise-exec restart | Stale IPC connection | op-node logs | Restart op-node |
@@ -218,6 +237,6 @@ cast block "$N" -f hash -r "$(sed -n 's/^PUBLIC_RPC=//p' "env.$NETWORK")"
 - **Upgrade only through git:** `git pull --ff-only`, then re-run the installer or `dc up -d`. Don't hand-edit generated files or `docker-compose.yml`. Use `.env`, drop-ins and override files.
 - **Stop cleanly** and give rise-exec its time to shut down. A killed database may need a snapshot restore.
 - **Keep `.env` minimal:** only your own values. Copying preset values or tag pins into `.env` stops future peer, DA and version updates from applying.
-- **Keep 7545 and the metrics ports off the public internet.** systemd binds them to loopback by default; Docker publishes them on all interfaces, so firewall them.
+- **Keep 7545 and the metrics ports off the public internet.** systemd binds them to loopback by default; Docker publishes them on all interfaces past ufw, so rebind them to loopback ([ports](#ports)) or block them in your cloud firewall.
 - **Running several nodes behind a load balancer?** Upgrade one at a time, and wait until it is in sync (`riseops`, or head age under 30s on Docker, see section 4) before moving to the next. Never take down the last healthy one.
 - **Don't run Docker and systemd on the same host at once:** they compete for the same ports.
