@@ -69,7 +69,7 @@ if [ -f "$REPO_DIR/.env" ]; then
   for v in NETWORK CHAIN_CONFIG_DIR L1_RPC_URL L1_RPC_KIND L1_TRUST_RPC PUBLIC_RPC \
            DA_SERVER P2P_STATIC RISE_EXEC_TAG RISE_NODE_TAG RISE_WITNESS_CONCURRENCY \
            RPC_GAS_CAP RPC_ETH_PROOF_WINDOW RPC_PROOF_PERMITS RPC_MAX_RESPONSE_SIZE \
-           OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD; do
+           OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD RUST_LOG OP_NODE_LOG_LEVEL; do
     val=$(dotenv_get "$v")
     if [ -n "$val" ]; then eval "$v=\$val"; fi
   done
@@ -183,7 +183,8 @@ fi
 # restart intent = on-disk markers: a run that fails midway must not lose it
 mark_restart() {
   case "$1" in exec|both) touch "$PREFIX/etc/.restart-exec" ;; esac
-  case "$1" in node|both) touch "$PREFIX/etc/.restart-node" ;; esac
+  # op-node holds a stale IPC conn after an exec restart, so restart it too
+  case "$1" in exec|node|both) touch "$PREFIX/etc/.restart-node" ;; esac
 }
 # copy_if_changed <src> <dst> <exec|node|both|none>: cp on diff + mark restart scope
 copy_if_changed() {
@@ -220,7 +221,7 @@ RPC_MAX_RESPONSE_SIZE=${RPC_MAX_RESPONSE_SIZE:-500}
 EOF
 
 {
-  echo "RUST_LOG=info"
+  echo "RUST_LOG=${RUST_LOG:-info}"
   [ -n "${RISE_WITNESS_CONCURRENCY:-}" ] && echo "RISE_WITNESS_CONCURRENCY=$RISE_WITNESS_CONCURRENCY"
   true
 } > "$STAGE/rise-exec.env"
@@ -233,7 +234,7 @@ OP_NODE_L1_MAX_CONCURRENCY=30
 OP_NODE_VERIFIER_L1_CONFS=12
 OP_NODE_ALTDA_MAX_CONCURRENT_DA_REQUESTS=5
 OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD=${OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD:-45m0s}
-OP_NODE_LOG_LEVEL=INFO
+OP_NODE_LOG_LEVEL=${OP_NODE_LOG_LEVEL:-INFO}
 EOF
 {
   [ -n "${L1_RPC_KIND:-}" ] && echo "OP_NODE_L1_RPC_KIND=$L1_RPC_KIND"

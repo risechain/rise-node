@@ -123,6 +123,10 @@ docker compose --env-file "env.$NETWORK" --env-file .env -p rise -f docker-compo
 # add `-f monitor.yml` for Grafana/Prometheus
 ```
 
+## Operating the node
+
+Layout, logs, debug knobs and common issues for both Docker and systemd: [docs/operator-guide.md](docs/operator-guide.md).
+
 ## Upgrade / rollback
 
 Release info (version pins, chain files, unit flags) ships via git:
