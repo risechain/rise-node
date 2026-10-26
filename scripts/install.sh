@@ -68,6 +68,7 @@ if [ -f "$REPO_DIR/.env" ]; then
   CHOSEN_NETWORK="$NETWORK"
   for v in NETWORK CHAIN_CONFIG_DIR L1_RPC_URL L1_RPC_KIND L1_TRUST_RPC PUBLIC_RPC \
            DA_SERVER P2P_STATIC RISE_EXEC_TAG RISE_NODE_TAG RISE_WITNESS_CONCURRENCY \
+           RISE_UPSTREAM_WS_URL RISE_DISABLE_SHRED \
            RPC_GAS_CAP RPC_ETH_PROOF_WINDOW RPC_PROOF_PERMITS RPC_MAX_RESPONSE_SIZE \
            OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD RUST_LOG OP_NODE_LOG_LEVEL; do
     val=$(dotenv_get "$v")
@@ -99,7 +100,7 @@ fi
 if [ -n "$(dotenv_get RISE_EXEC_TAG)$(dotenv_get RISE_NODE_TAG)" ]; then
   echo "NOTE: RISE_EXEC_TAG/RISE_NODE_TAG pinned in .env override the git preset — upgrades won't apply until you remove them"
 fi
-for v in RISE_EXEC_TAG RISE_NODE_TAG DA_SERVER P2P_STATIC; do
+for v in RISE_EXEC_TAG RISE_NODE_TAG DA_SERVER P2P_STATIC RISE_UPSTREAM_WS_URL; do
   [ -n "${!v:-}" ] || { echo "ERROR: $v is empty — an empty value in .env overrides the $NETWORK preset" >&2; exit 1; }
 done
 
@@ -222,6 +223,8 @@ EOF
 
 {
   echo "RUST_LOG=${RUST_LOG:-info}"
+  echo "RISE_UPSTREAM_WS_URL=$RISE_UPSTREAM_WS_URL"
+  echo "RISE_DISABLE_SHRED=${RISE_DISABLE_SHRED:-false}"
   [ -n "${RISE_WITNESS_CONCURRENCY:-}" ] && echo "RISE_WITNESS_CONCURRENCY=$RISE_WITNESS_CONCURRENCY"
   true
 } > "$STAGE/rise-exec.env"

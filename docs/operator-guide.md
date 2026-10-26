@@ -45,6 +45,22 @@ Where each head comes from. This tells you where to look when one lags:
 
 It is normal for safe to trail unsafe by a few minutes, and finalized to trail further behind.
 
+`rise-exec` also keeps a WebSocket to the network's public RPC, `RISE_UPSTREAM_WS_URL` in `env.<network>`
+(mainnet `wss://rpc.risechain.com/ws`, testnet `wss://testnet.riselabs.xyz/ws`). It uses it to:
+
+- **subscribe to shreds**: pre-confirmed transactions from the sequencer, served to your RPC users before the block arrives via op-node;
+- **forward transactions**: a replica doesn't build blocks, so `eth_sendRawTransaction` sent to it is relayed upstream to the sequencer.
+
+| `RISE_UPSTREAM_WS_URL` | `RISE_DISABLE_SHRED` | Shreds | Tx forwarding |
+|---|---|---|---|
+| set | `false` (default) | on | on |
+| set | `true` | off | on |
+| missing | any | off | off |
+
+To turn shreds off, set `RISE_DISABLE_SHRED=true` in `.env` and re-apply. Docker and `install.sh` refuse to start
+without `RISE_UPSTREAM_WS_URL`, so the last row is only what rise-exec does on its own, not a supported setup.
+Block sync doesn't depend on any of this, but the host needs **outbound** `wss://` (TCP 443) to the upstream host.
+
 ## 2. Layout and config
 
 **Config precedence:** `env.<network>` (git-managed preset: peers, DA, version pins, tuning)
@@ -205,6 +221,7 @@ Start every investigation with the status (`riseops` or section 4) and the last 
 | Unsafe head lags, `peer_count` is 0 or low | The host can't reach the static peers. They are the only source of new blocks | [peer check](#peer-reachability-check) below | Allow **outbound** TCP to the static peers' 30003 (host firewall, cloud security group, provider network), then restart op-node. Check `P2P_STATIC` isn't overridden by a stale `.env` |
 | Safe/finalized head lags or stalls, unsafe fine | L1 RPC throttled/failing, or the DA server unreachable | op-node logs: `grep -iE 'l1\|altda\|da-server\|429\|rate'` | Use an L1 RPC without rate limits (ideally your own). With a paid provider set `L1_RPC_KIND` (+ `L1_TRUST_RPC=true`) in `.env`. A throttled L1 keeps the node behind forever |
 | Head far behind and advancing slowly, never catching up | Same as above. On mainnet, also a missing snapshot (syncing from genesis) | Compare `cast bn` with `PUBLIC_RPC` over a few minutes | Fix L1 first. Mainnet: start from a snapshot (README section 2) |
+| `eth_sendRawTransaction` fails or no shreds, while blocks still sync | rise-exec can't reach the upstream WS | rise-exec logs: `grep -iE 'upstream\|ws'`; `curl -sI https://<upstream host>` from the host | Allow **outbound** TCP 443 to the upstream host. Check `RISE_UPSTREAM_WS_URL` isn't overridden in `.env`. No shreds only: check `RISE_DISABLE_SHRED` isn't `true` |
 | op-node logs engine/IPC errors after a rise-exec restart | Stale IPC connection | op-node logs | Restart op-node |
 | op-node exits at startup: `flag provided but not defined` | Binary and unit/compose flags from different releases, usually an old `RISE_NODE_TAG` pin in `.env` | `grep TAG .env` | Remove the pin, `git pull`, re-apply |
 | Service keeps restarting (`activating (auto-restart)` / container `Restarting`) | Crash loop. systemd units retry forever and never park in `failed` | `systemctl show rise-exec -p NRestarts` / `docker inspect -f '{{.RestartCount}}' rise-exec` | Read the **first** error after a restart, not the last line |
