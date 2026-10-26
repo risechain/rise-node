@@ -57,6 +57,9 @@ services:
       - RUST_LOG=${RUST_LOG:-info}
       # default 0 = disabled; an empty value would make rise-exec panic at startup
       - RISE_WITNESS_CONCURRENCY=${RISE_WITNESS_CONCURRENCY:-0}
+      # upstream WS: subscribe to shreds + forward eth_sendRawTransaction (RISE_DISABLE_SHRED=true keeps forwarding only)
+      - RISE_UPSTREAM_WS_URL=${RISE_UPSTREAM_WS_URL:?set via --env-file env.mainnet or env.testnet}
+      - RISE_DISABLE_SHRED=${RISE_DISABLE_SHRED:-false}
     volumes:
       - "/mnt/data/l2_data:/db"
       - "l2_ipc:/ipc"
