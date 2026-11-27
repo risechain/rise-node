@@ -136,7 +136,8 @@ fi
 # a live docker stack keeps 8545/30003 busy and its RPC would fool the health check
 if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null | grep -Eqx 'rise-exec|rise-node'; then
   echo "ERROR: docker containers rise-exec/rise-node are running — stop them first:" >&2
-  echo "       docker compose -p rise -f docker-compose.yml -f monitor.yml down" >&2
+  echo "       Run docker compose down with the same -p, --env-file and -f arguments used to start the stack." >&2
+  echo "       See README.md (section 3b) for the Docker-to-systemd shutdown command." >&2
   exit 1
 fi
 # same trap for any other squatter on the RPC port (only our own service may hold it)
